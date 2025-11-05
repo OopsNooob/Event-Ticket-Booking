@@ -1,7 +1,7 @@
 export default {
   providers: [
     {
-      domain: "https://fresh-monster-41.clerk.accounts.dev/",
+      domain: "https://capable-opossum-39.clerk.accounts.dev",
       applicationID: "convex",
     },
   ],

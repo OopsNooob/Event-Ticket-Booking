@@ -2,7 +2,6 @@ import { query, mutation } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import { DURATIONS, WAITING_LIST_STATUS, TICKET_STATUS } from "./constants";
 import { components, internal } from "./_generated/api";
-import { processQueue } from "./waitingList";
 import { MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
 
 export type Metrics = {
@@ -11,6 +10,7 @@ export type Metrics = {
   cancelledTickets: number;
   revenue: number;
 };
+
 
 // Initialize rate limiter
 const rateLimiter = new RateLimiter(components.rateLimiter, {
@@ -141,21 +141,42 @@ export const joinWaitingList = mutation({
     const event = await ctx.db.get(eventId);
     if (!event) throw new Error("Event not found");
 
-    // Check if there are any available tickets right now
-    const { available } = await checkAvailability(ctx, { eventId });
+    // Check availability inline instead of calling the query
+    const purchasedCount = await ctx.db
+      .query("tickets")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .collect()
+      .then(
+        (tickets) =>
+          tickets.filter(
+            (t) =>
+              t.status === TICKET_STATUS.VALID ||
+              t.status === TICKET_STATUS.USED
+          ).length
+      );
 
     const now = Date.now();
+    const activeOffers = await ctx.db
+      .query("waitingList")
+      .withIndex("by_event_status", (q) =>
+        q.eq("eventId", eventId).eq("status", WAITING_LIST_STATUS.OFFERED)
+      )
+      .collect()
+      .then(
+        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+      );
+
+    const availableSpots = event.totalTickets - (purchasedCount + activeOffers);
+    const available = availableSpots > 0;
 
     if (available) {
-      // If tickets are available, create an offer entry
       const waitingListId = await ctx.db.insert("waitingList", {
         eventId,
         userId,
-        status: WAITING_LIST_STATUS.OFFERED, // Mark as offered
-        offerExpiresAt: now + DURATIONS.TICKET_OFFER, // Set expiration time
+        status: WAITING_LIST_STATUS.OFFERED,
+        offerExpiresAt: now + DURATIONS.TICKET_OFFER,
       });
 
-      // Schedule a job to expire this offer after the offer duration
       await ctx.scheduler.runAfter(
         DURATIONS.TICKET_OFFER,
         internal.waitingList.expireOffer,
@@ -165,11 +186,10 @@ export const joinWaitingList = mutation({
         }
       );
     } else {
-      // If no tickets available, add to waiting list
       await ctx.db.insert("waitingList", {
         eventId,
         userId,
-        status: WAITING_LIST_STATUS.WAITING, // Mark as waiting
+        status: WAITING_LIST_STATUS.WAITING,
       });
     }
 
@@ -261,9 +281,11 @@ export const purchaseTicket = mutation({
         status: WAITING_LIST_STATUS.PURCHASED,
       });
 
-      console.log("Processing queue for next person");
-      // Process queue for next person
-      await processQueue(ctx, { eventId });
+      console.log("Processing queue for next person using scheduler");
+      // Process queue for next person using scheduler
+      await ctx.scheduler.runAfter(0, internal.waitingList.processQueueInternal, {
+        eventId,
+      });
 
       console.log("Purchase ticket completed successfully");
     } catch (error) {
