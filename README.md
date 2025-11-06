@@ -66,8 +66,6 @@ Create a `.env.local` file with:
 NEXT_PUBLIC_CONVEX_URL=your_convex_url
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_key
 CLERK_SECRET_KEY=your_clerk_secret
-STRIPE_SECRET_KEY=your_stripe_secret
-STRIPE_WEBHOOK_SECRET=your_webhook_secret
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
@@ -147,6 +145,7 @@ Note: Keep the Convex development server running while working on your project. 
 - Tickets
 - Waiting List
 - Users
+- Payments
 
 ### Key Components
 
