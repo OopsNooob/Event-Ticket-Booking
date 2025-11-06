@@ -1,6 +1,6 @@
 # Ticketr - Real-time Event Ticketing Platform
 
-A modern, real-time event ticketing platform built with Next.js 14, Convex, Clerk, and Stripe Connect. Features a sophisticated queue system, real-time updates, and secure payment processing.
+A modern, real-time event ticketing platform built with Next.js 14, Convex, Clerk. Features a sophisticated queue system, real-time updates, and secure payment processing.
 
 ## Features
 
@@ -10,13 +10,11 @@ A modern, real-time event ticketing platform built with Next.js 14, Convex, Cler
 - ⚡ Smart queuing system with position updates
 - 🕒 Time-limited ticket offers
 - 📱 Mobile-friendly ticket management
-- 🔒 Secure payment processing with Stripe
 - 📲 Digital tickets with QR codes
 - 💸 Automatic refunds for cancelled events
 
 ### For Event Organizers
 
-- 💰 Direct payments via Stripe Connect
 - 📊 Real-time sales monitoring
 - 🎯 Automated queue management
 - 📈 Event analytics and tracking
@@ -29,7 +27,6 @@ A modern, real-time event ticketing platform built with Next.js 14, Convex, Cler
 
 - 🚀 Real-time updates using Convex
 - 👤 Authentication with Clerk
-- 💳 Payment processing with Stripe Connect
 - 🌐 Server-side and client-side rendering
 - 🎨 Modern UI with Tailwind CSS and shadcn/ui
 - 📱 Responsive design
@@ -54,7 +51,6 @@ A modern, real-time event ticketing platform built with Next.js 14, Convex, Cler
 
 - Node.js 18+
 - npm/yarn
-- Stripe Account
 - Clerk Account
 - Convex Account
 
@@ -73,7 +69,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 ```bash
 # Clone the repository
-git clone https://github.com/sonnysangha/ticket-marketplace-saas-nextjs15-convex-clerk-stripe-connect
+git clone https://github.com/OopsNooob/Event-Ticket-Booking
 
 # Install dependencies
 npm install
@@ -160,9 +156,8 @@ Note: Keep the Convex development server running while working on your project. 
 ### Creating an Event
 
 1. Sign up as an event organizer
-2. Complete Stripe Connect onboarding
-3. Create event with details and ticket quantity
-4. Publish event
+2. Create event with details and ticket quantity
+3. Publish event
 
 ### Purchasing Tickets
 
