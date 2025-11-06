@@ -212,18 +212,9 @@ export const purchaseTicket = mutation({
     eventId: v.id("events"),
     userId: v.string(),
     waitingListId: v.id("waitingList"),
-    paymentInfo: v.object({
-      paymentIntentId: v.string(),
-      amount: v.number(),
-    }),
+    paymentMethod: v.string(), // Should be this, not paymentInfo with Stripe data
   },
-  handler: async (ctx, { eventId, userId, waitingListId, paymentInfo }) => {
-    console.log("Starting purchaseTicket handler", {
-      eventId,
-      userId,
-      waitingListId,
-    });
-
+  handler: async (ctx, { eventId, userId, waitingListId, paymentMethod }) => {
     // Verify waiting list entry exists and is valid
     const waitingListEntry = await ctx.db.get(waitingListId);
     console.log("Waiting list entry:", waitingListEntry);
@@ -265,15 +256,27 @@ export const purchaseTicket = mutation({
     }
 
     try {
-      console.log("Creating ticket with payment info", paymentInfo);
-      // Create ticket with payment info
+      console.log("Creating payment record");
+      // Create payment record
+      const paymentId = await ctx.db.insert("payments", {
+        eventId,
+        userId,
+        amount: event.price,
+        paymentMethod,
+        status: "completed", // Auto-complete for demo purposes
+        createdAt: Date.now(),
+        completedAt: Date.now(),
+      });
+
+      console.log("Creating ticket with payment info");
+      // Create ticket
       await ctx.db.insert("tickets", {
         eventId,
         userId,
         purchasedAt: Date.now(),
         status: TICKET_STATUS.VALID,
-        paymentIntentId: paymentInfo.paymentIntentId,
-        amount: paymentInfo.amount,
+        paymentId,
+        amount: event.price,
       });
 
       console.log("Updating waiting list status to purchased");
@@ -288,6 +291,8 @@ export const purchaseTicket = mutation({
       });
 
       console.log("Purchase ticket completed successfully");
+      
+      return { success: true, paymentId };
     } catch (error) {
       console.error("Failed to complete ticket purchase:", error);
       throw new Error(`Failed to complete ticket purchase: ${error}`);
@@ -301,7 +306,7 @@ export const getUserTickets = query({
   handler: async (ctx, { userId }) => {
     const tickets = await ctx.db
       .query("tickets")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .collect();
 
     const ticketsWithEvents = await Promise.all(
@@ -324,7 +329,7 @@ export const getUserWaitingList = query({
   handler: async (ctx, { userId }) => {
     const entries = await ctx.db
       .query("waitingList")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .withIndex("by_user_event", (q) => q.eq("userId", userId))
       .collect();
 
     const entriesWithEvents = await Promise.all(

@@ -12,46 +12,49 @@ export default defineSchema({
     userId: v.string(),
     imageStorageId: v.optional(v.id("_storage")),
     is_cancelled: v.optional(v.boolean()),
-  }),
+  }).index("by_user_id", ["userId"]),
+
   tickets: defineTable({
     eventId: v.id("events"),
     userId: v.string(),
     purchasedAt: v.number(),
-    status: v.union(
-      v.literal("valid"),
-      v.literal("used"),
-      v.literal("refunded"),
-      v.literal("cancelled")
-    ),
-    paymentIntentId: v.optional(v.string()),
-    amount: v.optional(v.number()),
+    status: v.string(),
+    paymentId: v.id("payments"),
+    amount: v.number(),
   })
+    .index("by_user_id", ["userId"])
     .index("by_event", ["eventId"])
-    .index("by_user", ["userId"])
-    .index("by_user_event", ["userId", "eventId"])
-    .index("by_payment_intent", ["paymentIntentId"]),
+    .index("by_user_event", ["userId", "eventId"]), // Add this line
 
   waitingList: defineTable({
     eventId: v.id("events"),
     userId: v.string(),
-    status: v.union(
-      v.literal("waiting"),
-      v.literal("offered"),
-      v.literal("purchased"),
-      v.literal("expired")
-    ),
+    status: v.string(),
     offerExpiresAt: v.optional(v.number()),
   })
-    .index("by_event_status", ["eventId", "status"])
     .index("by_user_event", ["userId", "eventId"])
-    .index("by_user", ["userId"]),
+    .index("by_event_status", ["eventId", "status"]),
 
   users: defineTable({
-    name: v.string(),
-    email: v.string(),
     userId: v.string(),
-    stripeConnectId: v.optional(v.string()),
+    email: v.string(),
+    name: v.optional(v.string()),
   })
     .index("by_user_id", ["userId"])
     .index("by_email", ["email"]),
+
+  payments: defineTable({
+    eventId: v.id("events"),
+    userId: v.string(),
+    amount: v.number(),
+    paymentMethod: v.string(), // "card", "bank_transfer", "cash", "ewallet"
+    status: v.string(), // "pending", "completed", "failed", "refunded"
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+    refundedAt: v.optional(v.number()),
+    failureReason: v.optional(v.string()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_event", ["eventId"])
+    .index("by_status", ["status"]),
 });

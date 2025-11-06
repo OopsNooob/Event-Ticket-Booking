@@ -1,326 +1,242 @@
 "use client";
-import { createStripeConnectAccountLink } from "@/app/actions/createStripeConnectAccountLink";
-import { createStripeConnectCustomer } from "@/app/actions/createStripeConnectCustomer";
+
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
-
-import { useRouter } from "next/navigation";
-import React, { useState, useEffect } from "react";
-import { createStripeConnectLoginLink } from "@/app/actions/createStripeConnectLoginLink";
-import { getStripeConnectAccountStatus } from "@/app/actions/getStripeConnectAccountStatus";
-import type { AccountStatus } from "@/app/actions/getStripeConnectAccountStatus";
-import { CalendarDays, Cog, Plus } from "lucide-react";
+import { CalendarDays, DollarSign, Plus, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import Spinner from "./Spinner";
 
 export default function SellerDashboard() {
-  const [accountCreatePending, setAccountCreatePending] = useState(false);
-  const [accountLinkCreatePending, setAccountLinkCreatePending] =
-    useState(false);
-  const [error, setError] = useState(false);
-  const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(
-    null
-  );
-  const router = useRouter();
   const { user } = useUser();
-  const stripeConnectId = useQuery(api.users.getUsersStripeConnectId, {
-    userId: user?.id || "",
-  });
 
-  const isReadyToAcceptPayments =
-    accountStatus?.isActive && accountStatus?.payoutsEnabled;
+  // Get seller statistics
+  const stats = useQuery(
+    api.payments.getSellerStats,
+    user ? { userId: user.id } : "skip"
+  );
 
-  useEffect(() => {
-    if (stripeConnectId) {
-      fetchAccountStatus();
-    }
-  }, [stripeConnectId]);
+  const payments = useQuery(
+    api.payments.getUserPayments,
+    user ? { userId: user.id } : "skip"
+  );
 
-  if (stripeConnectId === undefined) {
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Please sign in to access seller dashboard</p>
+      </div>
+    );
+  }
+
+  if (stats === undefined) {
     return <Spinner />;
   }
 
-  const handleManageAccount = async () => {
-    try {
-      if (stripeConnectId && accountStatus?.isActive) {
-        const loginUrl = await createStripeConnectLoginLink(stripeConnectId);
-        window.location.href = loginUrl;
-      }
-    } catch (error) {
-      console.error("Error accessing Stripe Connect portal:", error);
-      setError(true);
-    }
-  };
-
-  const fetchAccountStatus = async () => {
-    if (stripeConnectId) {
-      try {
-        const status = await getStripeConnectAccountStatus(stripeConnectId);
-        setAccountStatus(status);
-      } catch (error) {
-        console.error("Error fetching account status:", error);
-      }
-    }
-  };
-
   return (
-    <div className="max-w-3xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
         {/* Header Section */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-800 px-6 py-8 text-white">
           <h2 className="text-2xl font-bold">Seller Dashboard</h2>
           <p className="text-blue-100 mt-2">
-            Manage your seller profile and payment settings
+            Manage your events and track your earnings
           </p>
         </div>
 
-        {/* Main Content */}
-        {isReadyToAcceptPayments && (
-          <>
-            <div className="bg-white p-8 rounded-lg">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-                Sell tickets for your events
-              </h2>
-              <p className="text-gray-600 mb-8">
-                List your tickets for sale and manage your listings
-              </p>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                <div className="flex justify-center gap-4">
-                  <Link
-                    href="/seller/new-event"
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Create Event
-                  </Link>
-                  <Link
-                    href="/seller/events"
-                    className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
-                  >
-                    <CalendarDays className="w-5 h-5" />
-                    View My Events
-                  </Link>
-                </div>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-6">
+          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-green-600 text-sm font-medium">
+                  Total Revenue
+                </p>
+                <p className="text-2xl font-bold text-green-700 mt-2">
+                  ${stats.totalRevenue.toFixed(2)}
+                </p>
               </div>
+              <DollarSign className="w-10 h-10 text-green-600 opacity-50" />
             </div>
+          </div>
 
-            <hr className="my-8" />
-          </>
-        )}
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-blue-600 text-sm font-medium">
+                  Net Revenue
+                </p>
+                <p className="text-2xl font-bold text-blue-700 mt-2">
+                  ${stats.netRevenue.toFixed(2)}
+                </p>
+              </div>
+              <TrendingUp className="w-10 h-10 text-blue-600 opacity-50" />
+            </div>
+          </div>
 
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-yellow-600 text-sm font-medium">Pending</p>
+                <p className="text-2xl font-bold text-yellow-700 mt-2">
+                  ${stats.pendingAmount.toFixed(2)}
+                </p>
+              </div>
+              <DollarSign className="w-10 h-10 text-yellow-600 opacity-50" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-red-600 text-sm font-medium">Refunded</p>
+                <p className="text-2xl font-bold text-red-700 mt-2">
+                  ${stats.totalRefunded.toFixed(2)}
+                </p>
+              </div>
+              <DollarSign className="w-10 h-10 text-red-600 opacity-50" />
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Summary */}
         <div className="p-6">
-          {/* Account Creation Section */}
-          {!stripeConnectId && !accountCreatePending && (
-            <div className="text-center py-8">
-              <h3 className="text-xl font-semibold mb-4">
-                Start Accepting Payments
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Create your seller account to start receiving payments securely
-                through Stripe
-              </p>
-              <button
-                onClick={async () => {
-                  setAccountCreatePending(true);
-                  setError(false);
-                  try {
-                    await createStripeConnectCustomer();
-                    setAccountCreatePending(false);
-                  } catch (error) {
-                    console.error(
-                      "Error creating Stripe Connect customer:",
-                      error
-                    );
-                    setError(true);
-                    setAccountCreatePending(false);
-                  }
-                }}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          <div className="bg-gray-50 rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Payment Summary
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-gray-600 text-sm">Completed</p>
+                <p className="text-2xl font-semibold text-green-600">
+                  {stats.completedCount}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-600 text-sm">Pending</p>
+                <p className="text-2xl font-semibold text-yellow-600">
+                  {stats.pendingCount}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-600 text-sm">Refunded</p>
+                <p className="text-2xl font-semibold text-red-600">
+                  {stats.refundedCount}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-600 text-sm">Failed</p>
+                <p className="text-2xl font-semibold text-gray-600">
+                  {stats.failedCount}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Manage Your Events
+            </h2>
+            <div className="flex flex-wrap gap-4">
+              <Link
+                href="/seller/new-event"
+                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-md"
               >
-                Create Seller Account
-              </button>
+                <Plus className="w-5 h-5" />
+                Create New Event
+              </Link>
+              <Link
+                href="/seller/events"
+                className="flex items-center gap-2 bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 transition-colors shadow-md"
+              >
+                <CalendarDays className="w-5 h-5" />
+                View My Events
+              </Link>
             </div>
-          )}
+          </div>
+        </div>
 
-          {/* Account Status Section */}
-          {stripeConnectId && accountStatus && (
-            <div className="space-y-6">
-              {/* Status Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Account Status Card */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-500">
-                    Account Status
-                  </h3>
-                  <div className="mt-2 flex items-center">
-                    <div
-                      className={`w-3 h-3 rounded-full mr-2 ${
-                        accountStatus.isActive
-                          ? "bg-green-500"
-                          : "bg-yellow-500"
-                      }`}
-                    />
-                    <span className="text-lg font-semibold">
-                      {accountStatus.isActive ? "Active" : "Pending Setup"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Payments Status Card */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-500">
-                    Payment Capability
-                  </h3>
-                  <div className="mt-2 space-y-1">
-                    <div className="flex items-center">
-                      <svg
-                        className={`w-5 h-5 ${
-                          accountStatus.chargesEnabled
-                            ? "text-green-500"
-                            : "text-gray-400"
-                        }`}
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                      <span className="ml-2">
-                        {accountStatus.chargesEnabled
-                          ? "Can accept payments"
-                          : "Cannot accept payments yet"}
-                      </span>
-                    </div>
-                    <div className="flex items-center">
-                      <svg
-                        className={`w-5 h-5 ${
-                          accountStatus.payoutsEnabled
-                            ? "text-green-500"
-                            : "text-gray-400"
-                        }`}
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                      <span className="ml-2">
-                        {accountStatus.payoutsEnabled
-                          ? "Can receive payouts"
-                          : "Cannot receive payouts yet"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Requirements Section */}
-              {accountStatus.requiresInformation && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-yellow-800 mb-3">
-                    Required Information
-                  </h3>
-                  {accountStatus.requirements.currently_due.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-yellow-800 font-medium mb-2">
-                        Action Required:
-                      </p>
-                      <ul className="list-disc pl-5 text-yellow-700 text-sm">
-                        {accountStatus.requirements.currently_due.map((req) => (
-                          <li key={req}>{req.replace(/_/g, " ")}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {accountStatus.requirements.eventually_due.length > 0 && (
-                    <div>
-                      <p className="text-yellow-800 font-medium mb-2">
-                        Eventually Needed:
-                      </p>
-                      <ul className="list-disc pl-5 text-yellow-700 text-sm">
-                        {accountStatus.requirements.eventually_due.map(
-                          (req) => (
-                            <li key={req}>{req.replace(/_/g, " ")}</li>
-                          )
-                        )}
-                      </ul>
-                    </div>
-                  )}
-                  {/* Only show Add Information button if there are requirements */}
-                  {!accountLinkCreatePending && (
-                    <button
-                      onClick={async () => {
-                        setAccountLinkCreatePending(true);
-                        setError(false);
-                        try {
-                          const { url } =
-                            await createStripeConnectAccountLink(
-                              stripeConnectId
-                            );
-                          router.push(url);
-                        } catch (error) {
-                          console.error(
-                            "Error creating Stripe Connect account link:",
-                            error
-                          );
-                          setError(true);
-                        }
-                        setAccountLinkCreatePending(false);
-                      }}
-                      className="mt-4 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
-                    >
-                      Complete Requirements
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-3 mt-6">
-                {accountStatus.isActive && (
-                  <button
-                    onClick={handleManageAccount}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-                  >
-                    <Cog className="w-4 h-4 mr-2" />
-                    Seller Dashboard
-                  </button>
-                )}
-                <button
-                  onClick={fetchAccountStatus}
-                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Refresh Status
-                </button>
-              </div>
-
-              {error && (
-                <div className="mt-4 bg-red-50 text-red-600 p-3 rounded-lg">
-                  Unable to access Stripe dashboard. Please complete all
-                  requirements first.
+        {/* Recent Payments */}
+        <div className="p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Recent Payments
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              {payments && payments.length > 0 ? (
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Event
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Amount
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Method
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Date
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {payments.slice(0, 10).map((payment) => (
+                      <tr key={payment._id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {payment.event?.name || "Unknown Event"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            ${payment.amount.toFixed(2)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-600 capitalize">
+                            {payment.paymentMethod.replace(/_/g, " ")}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              payment.status === "completed"
+                                ? "bg-green-100 text-green-800"
+                                : payment.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : payment.status === "refunded"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {payment.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(payment.createdAt).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="px-6 py-12 text-center text-gray-500">
+                  No payments yet. Create your first event to start selling
+                  tickets!
                 </div>
               )}
             </div>
-          )}
-
-          {/* Loading States */}
-          {accountCreatePending && (
-            <div className="text-center py-4 text-gray-600">
-              Creating your seller account...
-            </div>
-          )}
-          {accountLinkCreatePending && (
-            <div className="text-center py-4 text-gray-600">
-              Preparing account setup...
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
