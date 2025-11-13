@@ -26,17 +26,27 @@ export default function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
   const handlePurchase = async () => {
     if (!user || !queuePosition) return;
 
+    console.log("🎫 Starting purchase process...");
+    console.log("Event ID:", eventId);
+    console.log("Queue Position ID:", queuePosition._id);
+    console.log("Payment Method:", paymentMethod);
+
     setIsLoading(true);
     try {
-      await purchaseTicketAction({
+      console.log("📞 Calling purchaseTicketAction...");
+
+      const result = await purchaseTicketAction({
         eventId,
         waitingListId: queuePosition._id,
         paymentMethod,
       });
 
+      console.log("✅ Purchase action completed:", result);
+      console.log("Redirecting to success page...");
+
       router.push(`/tickets/purchase-success?eventId=${eventId}`);
     } catch (error) {
-      console.error("Purchase error:", error);
+      console.error("❌ Purchase error:", error);
       alert("Failed to purchase ticket. Please try again.");
     } finally {
       setIsLoading(false);

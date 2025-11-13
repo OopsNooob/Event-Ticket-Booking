@@ -212,9 +212,15 @@ export const purchaseTicket = mutation({
     eventId: v.id("events"),
     userId: v.string(),
     waitingListId: v.id("waitingList"),
-    paymentMethod: v.string(), // Should be this, not paymentInfo with Stripe data
+    paymentMethod: v.string(),
   },
   handler: async (ctx, { eventId, userId, waitingListId, paymentMethod }) => {
+    console.log("Starting purchaseTicket handler", {
+      eventId,
+      userId,
+      waitingListId,
+    });
+
     // Verify waiting list entry exists and is valid
     const waitingListEntry = await ctx.db.get(waitingListId);
     console.log("Waiting list entry:", waitingListEntry);
@@ -263,14 +269,14 @@ export const purchaseTicket = mutation({
         userId,
         amount: event.price,
         paymentMethod,
-        status: "completed", // Auto-complete for demo purposes
+        status: "completed",
         createdAt: Date.now(),
         completedAt: Date.now(),
       });
 
       console.log("Creating ticket with payment info");
       // Create ticket
-      await ctx.db.insert("tickets", {
+      const ticketId = await ctx.db.insert("tickets", {
         eventId,
         userId,
         purchasedAt: Date.now(),
@@ -279,20 +285,22 @@ export const purchaseTicket = mutation({
         amount: event.price,
       });
 
+      console.log("Ticket created with ID:", ticketId);
+
       console.log("Updating waiting list status to purchased");
       await ctx.db.patch(waitingListId, {
         status: WAITING_LIST_STATUS.PURCHASED,
       });
 
       console.log("Processing queue for next person using scheduler");
-      // Process queue for next person using scheduler
       await ctx.scheduler.runAfter(0, internal.waitingList.processQueueInternal, {
         eventId,
       });
 
       console.log("Purchase ticket completed successfully");
       
-      return { success: true, paymentId };
+      // This line should include ticketId
+      return { success: true, paymentId, ticketId };
     } catch (error) {
       console.error("Failed to complete ticket purchase:", error);
       throw new Error(`Failed to complete ticket purchase: ${error}`);
