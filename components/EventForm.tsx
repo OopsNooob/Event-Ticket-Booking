@@ -24,6 +24,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useStorageUrl } from "@/lib/utils";
+import LeafletLocationPicker from "./LeafletLocationPicker";
 
 const formSchema = z.object({
   name: z.string().min(1, "Event name is required"),
@@ -236,7 +237,10 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
               <FormItem>
                 <FormLabel>Location</FormLabel>
                 <FormControl>
-                  <Input {...field} />
+                  <LeafletLocationPicker
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
