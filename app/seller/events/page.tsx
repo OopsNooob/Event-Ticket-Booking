@@ -1,47 +1,60 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
-import SellerEventList from "@/components/SellerEventList";
-import Link from "next/link";
-import { ArrowLeft, Plus } from "lucide-react";
+"use client";
 
-export default async function SellerEventsPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/");
+import { useUser } from "@clerk/nextjs";
+import EventList from "./EventList";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CalendarDays, History } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Id } from "@/convex/_generated/dataModel";
+
+export default function SellerEventsPage() {
+  const { user } = useUser();
+  const router = useRouter();
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-600">Please sign in to view your events</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Link
-                href="/seller"
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">My Events</h1>
-                <p className="mt-1 text-gray-500">
-                  Manage your event listings and track sales
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/seller/new-event"
-              className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Create Event
-            </Link>
-          </div>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900">My Events</h1>
+          <p className="text-gray-600 mt-2">Manage your events and track sales</p>
         </div>
 
-        {/* Event List */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <SellerEventList />
-        </div>
+        <Tabs defaultValue="upcoming" className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
+            <TabsTrigger value="upcoming" className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4" />
+              Upcoming Events
+            </TabsTrigger>
+            <TabsTrigger value="past" className="flex items-center gap-2">
+              <History className="w-4 h-4" />
+              Past Events
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="upcoming">
+            <EventList 
+              userId={user.id} 
+              filter="upcoming"
+              onEventClick={(eventId: Id<"events">) => router.push(`/seller/events/${eventId}`)}
+            />
+          </TabsContent>
+
+          <TabsContent value="past">
+            <EventList 
+              userId={user.id} 
+              filter="past"
+              onEventClick={(eventId: Id<"events">) => router.push(`/seller/events/${eventId}`)}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

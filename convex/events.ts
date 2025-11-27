@@ -535,3 +535,11 @@ export const cancelEvent = mutation({
     return { success: true };
   },
 });
+
+// Add this new query function
+export const getEventById = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    return await ctx.db.get(eventId);
+  },
+});

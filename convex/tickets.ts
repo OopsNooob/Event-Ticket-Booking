@@ -60,3 +60,91 @@ export const updateTicketStatus = mutation({
     await ctx.db.patch(ticketId, { status });
   },
 });
+
+// Auto-update expired tickets for a specific user
+export const updateExpiredTicketsForUser = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, { userId }) => {
+    const now = Date.now();
+    
+    // Get all valid tickets for this user - Fixed index name
+    const tickets = await ctx.db
+      .query("tickets")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .filter((q) => q.eq(q.field("status"), "valid"))
+      .collect();
+
+    let updatedCount = 0;
+
+    for (const ticket of tickets) {
+      // Get event details
+      const event = await ctx.db.get(ticket.eventId);
+      
+      // If event has ended, mark ticket as used
+      if (event && event.eventDate < now) {
+        await ctx.db.patch(ticket._id, {
+          status: "used",
+        });
+        updatedCount++;
+      }
+    }
+
+    return { updated: updatedCount };
+  },
+});
+
+// Auto-update all expired tickets (admin function)
+export const updateAllExpiredTickets = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    
+    // Get all valid tickets
+    const tickets = await ctx.db
+      .query("tickets")
+      .filter((q) => q.eq(q.field("status"), "valid"))
+      .collect();
+
+    let updatedCount = 0;
+
+    for (const ticket of tickets) {
+      // Get event details
+      const event = await ctx.db.get(ticket.eventId);
+      
+      // If event has ended, mark ticket as used
+      if (event && event.eventDate < now) {
+        await ctx.db.patch(ticket._id, {
+          status: "used",
+        });
+        updatedCount++;
+      }
+    }
+
+    return { updated: updatedCount };
+  },
+});
+
+// Mark specific ticket as used (for scanning at event)
+export const markTicketAsUsed = mutation({
+  args: {
+    ticketId: v.id("tickets"),
+  },
+  handler: async (ctx, { ticketId }) => {
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) {
+      throw new Error("Ticket not found");
+    }
+
+    if (ticket.status !== "valid") {
+      throw new Error(`Ticket is already ${ticket.status}`);
+    }
+
+    await ctx.db.patch(ticketId, {
+      status: "used",
+    });
+
+    return { success: true };
+  },
+});
