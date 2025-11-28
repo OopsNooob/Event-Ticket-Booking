@@ -459,6 +459,29 @@ export const getSellerEvents = query({
   },
 });
 
+export const getSellerEventsWithStats = query({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const events = await ctx.db
+      .query("events")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .collect();
+
+    const results: any[] = [];
+    for (const event of events) {
+      const tickets = await ctx.db
+        .query("tickets")
+        .withIndex("by_event", (q) => q.eq("eventId", event._id))
+        .collect();
+      results.push({
+        ...event,
+        ticketsSold: tickets.length,
+      });
+    }
+    return results;
+  },
+});
+
 export const updateEvent = mutation({
   args: {
     eventId: v.id("events"),

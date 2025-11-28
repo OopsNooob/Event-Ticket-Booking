@@ -103,7 +103,7 @@ function EventCard({ event, onEventClick }: { event: any; onEventClick: () => vo
 }
 
 export default function EventList({ userId, filter, onEventClick }: EventListProps) {
-  const events = useQuery(api.events.getSellerEvents, { userId });
+  const events = useQuery(api.events.getSellerEventsWithStats, { userId });
 
   if (!events) {
     return (
