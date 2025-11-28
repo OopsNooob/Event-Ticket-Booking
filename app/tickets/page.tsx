@@ -4,7 +4,7 @@ import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { redirect } from "next/navigation";
-import { Ticket, Calendar, MapPin, ChevronRight } from "lucide-react";
+import { Ticket, Calendar, MapPin, ChevronRight, Search } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Id } from "@/convex/_generated/dataModel";
 import Image from "next/image";
@@ -124,6 +124,7 @@ export default function MyTicketsPage() {
   const [selectedTicketId, setSelectedTicketId] = useState<Id<"tickets"> | null>(
     null
   );
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Auto-update expired tickets when page loads
   useEffect(() => {
@@ -150,6 +151,22 @@ export default function MyTicketsPage() {
   const validTickets = tickets.filter(
     (ticket) => ticket && ticket._id && ticket.event
   );
+
+  // Filter tickets by search query
+  const filteredTickets = validTickets.filter((ticket) => {
+    if (!searchQuery.trim()) return true;
+    
+    const eventName = ticket.event?.name?.toLowerCase() || "";
+    const location = ticket.event?.location?.toLowerCase() || "";
+    const ticketId = ticket._id.toLowerCase();
+    const query = searchQuery.toLowerCase();
+    
+    return (
+      eventName.includes(query) ||
+      location.includes(query) ||
+      ticketId.includes(query)
+    );
+  });
 
   if (validTickets.length === 0) {
     return (
@@ -187,18 +204,81 @@ export default function MyTicketsPage() {
           </p>
         </div>
 
-        {/* Tickets Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {validTickets.map((ticket) => (
-            <TicketCardWithImage
-              key={ticket._id}
-              ticket={ticket}
-              onClick={() => setSelectedTicketId(ticket._id)}
+        {/* Search Bar */}
+        <div className="mb-8">
+          <div className="relative max-w-2xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by event name, location, or ticket ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-colors text-gray-900 placeholder-gray-400 bg-white shadow-sm"
             />
-          ))}
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            )}
+          </div>
+          
+          {/* Search Results Info */}
+          {searchQuery && (
+            <p className="mt-3 text-sm text-gray-600">
+              Found {filteredTickets.length} ticket
+              {filteredTickets.length !== 1 ? "s" : ""} matching "{searchQuery}"
+            </p>
+          )}
         </div>
 
-        {/* Ticket Detail Modal */}
+        {/* No Results */}
+        {filteredTickets.length === 0 && searchQuery && (
+          <div className="text-center py-12">
+            <Search className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              No tickets found
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Try searching with different keywords
+            </p>
+            <button
+              onClick={() => setSearchQuery("")}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Clear search
+            </button>
+          </div>
+        )}
+
+        {/* Tickets Grid */}
+        {filteredTickets.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTickets.map((ticket) => (
+              <TicketCardWithImage
+                key={ticket._id}
+                ticket={ticket}
+                onClick={() => setSelectedTicketId(ticket._id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Ticket Detail Modal - giữ nguyên code cũ */}
         {selectedTicket && selectedTicketId && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
@@ -302,7 +382,6 @@ export default function MyTicketsPage() {
                 {/* Download Button */}
                 <button
                   onClick={async () => {
-                    // Create a canvas to draw the ticket
                     const canvas = document.createElement('canvas');
                     canvas.width = 800;
                     canvas.height = 1000;
@@ -310,18 +389,15 @@ export default function MyTicketsPage() {
                     
                     if (!ctx) return;
 
-                    // Background
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                    // Event Name
                     ctx.fillStyle = '#1f2937';
                     ctx.font = 'bold 32px Arial';
                     ctx.textAlign = 'left';
                     const eventName = selectedTicket.event?.name || 'Event';
                     ctx.fillText(eventName, 50, 70);
 
-                    // Date
                     ctx.fillStyle = '#6b7280';
                     ctx.font = '20px Arial';
                     const dateText = selectedTicket.event?.eventDate
@@ -333,32 +409,26 @@ export default function MyTicketsPage() {
                       : 'Date: TBA';
                     ctx.fillText(dateText, 50, 120);
 
-                    // Location
                     const locationText = `Location: ${selectedTicket.event?.location || 'TBA'}`;
                     ctx.fillText(locationText, 50, 160);
 
-                    // Ticket ID
                     const ticketIdText = `Ticket ID: ${selectedTicket._id.slice(-8).toUpperCase()}`;
                     ctx.fillText(ticketIdText, 50, 200);
 
-                    // Load and draw QR code - FIX HERE
-                    const qrImg = new window.Image(); // Use window.Image instead of Image
+                    const qrImg = new window.Image();
                     qrImg.crossOrigin = 'anonymous';
                     qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${selectedTicket._id}`;
                     
                     qrImg.onload = () => {
-                      // Draw QR code centered
                       const qrSize = 500;
                       const qrX = (canvas.width - qrSize) / 2;
                       const qrY = 250;
                       ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
 
-                      // Status badge
                       const status = selectedTicket.status.toUpperCase();
                       ctx.font = 'bold 28px Arial';
                       ctx.textAlign = 'center';
                       
-                      // Badge background
                       const badgeY = 800;
                       const badgeWidth = 200;
                       const badgeHeight = 60;
@@ -374,13 +444,10 @@ export default function MyTicketsPage() {
                       
                       ctx.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
                       
-                      // Badge text
                       ctx.fillStyle = '#ffffff';
                       ctx.fillText(status, canvas.width / 2, badgeY + 40);
 
-                      // Download
                       const link = document.createElement('a');
-                      // Create filename from event name and ticket ID
                       const eventSlug = selectedTicket.event?.name
                         .toLowerCase()
                         .replace(/[^a-z0-9]+/g, '-')
