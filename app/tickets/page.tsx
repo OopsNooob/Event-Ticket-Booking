@@ -10,6 +10,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import Image from "next/image";
 import { useStorageUrl } from "@/lib/utils";
 import Spinner from "@/components/Spinner";
+import RoleGuard from "@/components/RoleGuard";
 
 // Component để hiển thị mỗi ticket card với image
 function TicketCardWithImage({
@@ -193,11 +194,12 @@ export default function MyTicketsPage() {
   const selectedTicket = validTickets.find((t) => t._id === selectedTicketId);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">My Tickets</h1>
+    <RoleGuard allowedRole="user">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">My Tickets</h1>
           <p className="text-gray-600">
             You have {validTickets.length} ticket
             {validTickets.length !== 1 ? "s" : ""}
@@ -480,6 +482,7 @@ export default function MyTicketsPage() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </RoleGuard>
   );
 }

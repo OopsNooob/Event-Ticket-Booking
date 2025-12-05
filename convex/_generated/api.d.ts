@@ -11,6 +11,7 @@
 import type * as constants from "../constants.js";
 import type * as crons from "../crons.js";
 import type * as events from "../events.js";
+import type * as migrations from "../migrations.js";
 import type * as payments from "../payments.js";
 import type * as storage from "../storage.js";
 import type * as tickets from "../tickets.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   constants: typeof constants;
   crons: typeof crons;
   events: typeof events;
+  migrations: typeof migrations;
   payments: typeof payments;
   storage: typeof storage;
   tickets: typeof tickets;

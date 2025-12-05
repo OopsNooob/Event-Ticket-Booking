@@ -1,10 +1,20 @@
-import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+"use client";
+
+import { SignInButton, SignedIn, SignedOut, UserButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 import logo from "@/images/logo.png";
 import SearchBar from "./SearchBar";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 function Header() {
+  const { user } = useUser();
+  const userRole = useQuery(
+    api.users.getUserRole,
+    user?.id ? { userId: user.id } : "skip"
+  );
+
   return (
     <div className="border-b">
       <div className="flex flex-col lg:flex-row items-center gap-4 p-4">
@@ -41,15 +51,37 @@ function Header() {
         <div className="hidden lg:block ml-auto">
           <SignedIn>
             <div className="flex items-center gap-3">
-              <Link href="/seller">
-                <button className="bg-blue-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-blue-700 transition">
-                  Sell Tickets
-                </button>
-              </Link>
-
-              <Link href="/tickets">
-                <button className="bg-gray-100 text-gray-800 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-200 transition border border-gray-300">
-                  My Tickets
+              {/* Navigation dựa trên role */}
+              {userRole === "organizer" ? (
+                <>
+                  <Link href="/seller/dashboard">
+                    <button className="bg-blue-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-blue-700 transition">
+                      Dashboard
+                    </button>
+                  </Link>
+                  <Link href="/seller/new-event">
+                    <button className="bg-green-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-green-700 transition">
+                      Create Event
+                    </button>
+                  </Link>
+                  <Link href="/seller/events">
+                    <button className="bg-gray-100 text-gray-800 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-200 transition border border-gray-300">
+                      My Events
+                    </button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/tickets">
+                    <button className="bg-gray-100 text-gray-800 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-200 transition border border-gray-300">
+                      My Tickets
+                    </button>
+                  </Link>
+                </>
+              )}
+              <Link href="/settings">
+                <button className="bg-purple-100 text-purple-800 px-3 py-1.5 text-sm rounded-lg hover:bg-purple-200 transition border border-purple-300">
+                  Settings
                 </button>
               </Link>
               <UserButton />
@@ -68,17 +100,26 @@ function Header() {
         {/* Mobile Action Buttons */}
         <div className="lg:hidden w-full flex justify-center gap-3">
           <SignedIn>
-            <Link href="/seller" className="flex-1">
-              <button className="w-full bg-blue-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-blue-700 transition">
-                Sell Tickets
-              </button>
-            </Link>
-
-            <Link href="/tickets" className="flex-1">
-              <button className="w-full bg-gray-100 text-gray-800 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-200 transition border border-gray-300">
-                My Tickets
-              </button>
-            </Link>
+            {userRole === "organizer" ? (
+              <>
+                <Link href="/seller/dashboard" className="flex-1">
+                  <button className="w-full bg-blue-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-blue-700 transition">
+                    Dashboard
+                  </button>
+                </Link>
+                <Link href="/seller/events" className="flex-1">
+                  <button className="w-full bg-gray-100 text-gray-800 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-200 transition border border-gray-300">
+                    My Events
+                  </button>
+                </Link>
+              </>
+            ) : (
+              <Link href="/tickets" className="flex-1">
+                <button className="w-full bg-gray-100 text-gray-800 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-200 transition border border-gray-300">
+                  My Tickets
+                </button>
+              </Link>
+            )}
           </SignedIn>
         </div>
       </div>

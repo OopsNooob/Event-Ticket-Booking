@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import Spinner from "@/components/Spinner";
 import { ArrowLeft, Calendar, MapPin, Ticket, DollarSign, Users, Edit } from "lucide-react";
 import { useStorageUrl } from "@/lib/utils";
+import RoleGuard from "@/components/RoleGuard";
 
 export default function EventDetailsPage() {
   const params = useParams();
@@ -32,7 +33,8 @@ export default function EventDetailsPage() {
   const attendees = tickets.filter((t) => t.status === "used").length;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <RoleGuard allowedRole="organizer">
+      <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header with Back and Edit buttons */}
         <div className="flex items-center justify-between mb-6">
@@ -234,6 +236,7 @@ export default function EventDetailsPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </RoleGuard>
   );
 }

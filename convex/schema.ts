@@ -39,6 +39,7 @@ export default defineSchema({
     userId: v.string(),
     email: v.string(),
     name: v.optional(v.string()),
+    role: v.optional(v.union(v.literal("user"), v.literal("organizer"))), // Optional để support existing users
   })
     .index("by_user_id", ["userId"])
     .index("by_email", ["email"]),
