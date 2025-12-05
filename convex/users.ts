@@ -79,7 +79,75 @@ export const getUserRole = query({
   },
 });
 
-// Cập nhật role của user
+// Kiểm tra xem user có thể chuyển role không
+export const canSwitchRole = query({
+  args: {
+    userId: v.string(),
+    targetRole: v.union(v.literal("user"), v.literal("organizer")),
+  },
+  handler: async (ctx, { userId, targetRole }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!user) {
+      return {
+        canSwitch: false,
+        reason: "User not found",
+      };
+    }
+
+    // Nếu đang ở role hiện tại
+    if (user.role === targetRole) {
+      return {
+        canSwitch: false,
+        reason: "Already in target role",
+      };
+    }
+
+    // Nếu muốn chuyển sang ORGANIZER
+    if (targetRole === "organizer") {
+      // Kiểm tra xem user đã mua vé nào chưa
+      const tickets = await ctx.db
+        .query("tickets")
+        .withIndex("by_user_id", (q) => q.eq("userId", userId))
+        .collect();
+
+      if (tickets.length > 0) {
+        return {
+          canSwitch: false,
+          reason: `Cannot become organizer: You have ${tickets.length} purchased ticket(s). Please contact admin to delete your tickets first.`,
+          ticketCount: tickets.length,
+        };
+      }
+    }
+
+    // Nếu muốn chuyển sang USER
+    if (targetRole === "user") {
+      // Kiểm tra xem organizer đã tạo event nào chưa
+      const events = await ctx.db
+        .query("events")
+        .withIndex("by_user_id", (q) => q.eq("userId", userId))
+        .collect();
+
+      if (events.length > 0) {
+        return {
+          canSwitch: false,
+          reason: `Cannot become user: You have created ${events.length} event(s). Please delete or transfer your events first.`,
+          eventCount: events.length,
+        };
+      }
+    }
+
+    return {
+      canSwitch: true,
+      reason: "OK",
+    };
+  },
+});
+
+// Cập nhật role của user với validation
 export const updateUserRole = mutation({
   args: {
     userId: v.string(),
@@ -93,6 +161,35 @@ export const updateUserRole = mutation({
 
     if (!user) {
       throw new Error("User not found");
+    }
+
+    // Validation: Check if switch is allowed
+    if (role === "organizer") {
+      // Kiểm tra tickets
+      const tickets = await ctx.db
+        .query("tickets")
+        .withIndex("by_user_id", (q) => q.eq("userId", userId))
+        .collect();
+
+      if (tickets.length > 0) {
+        throw new Error(
+          `Cannot become organizer: You have ${tickets.length} purchased ticket(s). Please contact admin to delete your tickets first.`
+        );
+      }
+    }
+
+    if (role === "user") {
+      // Kiểm tra events
+      const events = await ctx.db
+        .query("events")
+        .withIndex("by_user_id", (q) => q.eq("userId", userId))
+        .collect();
+
+      if (events.length > 0) {
+        throw new Error(
+          `Cannot become user: You have created ${events.length} event(s). Please delete or transfer your events first.`
+        );
+      }
     }
 
     await ctx.db.patch(user._id, { role });

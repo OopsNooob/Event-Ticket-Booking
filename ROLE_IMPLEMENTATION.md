@@ -54,11 +54,26 @@ Header hiển thị menu khác nhau tùy theo role:
 - Settings (tím)
 
 ### 6. Settings Page (`app/settings/page.tsx`)
-Trang cho phép user đổi role:
+Trang cho phép user đổi role với validation:
 - Hiển thị role hiện tại
 - Radio buttons để chọn role mới
-- Button "Switch Role" (disabled nếu role giống nhau)
+- **Validation checks**:
+  - User → Organizer: Không được có tickets đã mua
+  - Organizer → User: Không được có events đã tạo
+- Hiển thị warnings/errors nếu không thể đổi
+- Button "Switch Role" (disabled nếu có conflict)
 - Sau khi đổi role thành công → redirect về "/"
+
+### 7. Validation Functions (`convex/users.ts`)
+**canSwitchRole** - Query để check trước khi cho phép switch:
+- Trả về `{ canSwitch: boolean, reason: string, ticketCount?, eventCount? }`
+- Check tickets nếu muốn thành organizer
+- Check events nếu muốn thành user
+
+**updateUserRole** - Mutation với validation:
+- Throw error nếu user có tickets (khi switch sang organizer)
+- Throw error nếu organizer có events (khi switch sang user)
+- Chỉ update role nếu pass validation
 
 ## How to Test
 
@@ -87,11 +102,29 @@ Trang cho phép user đổi role:
 2. KHÔNG thể truy cập:
    - /tickets (sẽ bị redirect về /seller/dashboard)
 
-### 4. Switch Back to User
+### 4. Test Validation - Try to Switch with Conflicts
+**Test User có tickets:**
+1. Login as User
+2. Mua 1 vé
+3. Vào Settings → Chọn "Event Organizer"
+4. Sẽ thấy warning màu đỏ: "Cannot become organizer: You have X purchased ticket(s)"
+5. Button "Switch Role" bị disabled
+6. Phải xóa tickets trước (qua Migration page) mới đổi được
+
+**Test Organizer có events:**
+1. Login as Organizer
+2. Tạo 1 event
+3. Vào Settings → Chọn "User"
+4. Sẽ thấy warning màu đỏ: "Cannot become user: You have created X event(s)"
+5. Button "Switch Role" bị disabled
+6. Phải xóa/cancel events trước mới đổi được
+
+### 5. Switch Back to User (if no events)
 1. Click "Settings" 
 2. Chọn "User"
-3. Click "Switch Role"
-4. Header lại hiển thị "My Tickets"
+3. Nếu không có events → Thấy "Ready to Switch" màu xanh
+4. Click "Switch Role"
+5. Header lại hiển thị "My Tickets"
 
 ## Technical Details
 
@@ -122,6 +155,30 @@ to "/"         ↓
 - Users cần vào Settings để set role lần đầu tiên
 - Hoặc có thể chạy migration script để set default role cho existing users
 
+## Validation Rules ✅
+
+### User → Organizer
+- ❌ KHÔNG được có tickets đã mua
+- ✅ Nếu có tickets, phải xóa hết trước (qua Migration page)
+- Lý do: Organizers không được mua vé, sẽ conflict với business logic
+
+### Organizer → User
+- ❌ KHÔNG được có events đã tạo
+- ✅ Nếu có events, phải xóa/cancel hết trước
+- Lý do: Users không được tạo events, sẽ làm mất dữ liệu quản lý
+
+### Settings Page Behavior
+1. **Chọn role khác** → Query `canSwitchRole` tự động
+2. **Có conflict** → Hiển thị warning màu đỏ với lý do cụ thể
+3. **Không conflict** → Hiển thị "Ready to Switch" màu xanh
+4. **Button disabled** nếu:
+   - Role giống nhau
+   - Có conflict (canSwitch = false)
+   - Đang loading
+5. **Click Switch** → Call mutation với validation
+6. **Backend validation** → Double-check trước khi update
+7. **Success** → Redirect về "/"
+
 ## Future Improvements
 
 1. **Admin Role**: Thêm role "admin" để quản lý toàn bộ hệ thống
@@ -130,6 +187,8 @@ to "/"         ↓
 4. **Audit Log**: Log lại mỗi lần đổi role
 5. **Multi-role**: Cho phép user có nhiều roles cùng lúc
 6. **Role-based Pricing**: Organizer trả phí để tạo events
+7. **Bulk Role Assignment**: Admin có thể assign role cho nhiều users cùng lúc
+8. **Event Transfer**: Cho phép transfer events từ organizer này sang organizer khác
 
 ## Notes
 
