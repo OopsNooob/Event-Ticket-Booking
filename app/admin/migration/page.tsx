@@ -4,9 +4,15 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, AlertCircle, Users, RefreshCw, Ticket, Trash2 } from "lucide-react";
+import { CheckCircle, XCircle, AlertCircle, Users, RefreshCw, Ticket, Trash2, Shield } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+
+const ADMIN_EMAIL = "dodinhkhang8@gmail.com";
 
 export default function MigrationPage() {
+  const { user, isLoaded } = useUser();
+  const router = useRouter();
   const [isRunning, setIsRunning] = useState(false);
   
   const status = useQuery(api.migrations.checkUsersRoleStatus);
@@ -17,6 +23,52 @@ export default function MigrationPage() {
   const migrateRoles = useMutation(api.migrations.migrateUserRoles);
   const resetRoles = useMutation(api.migrations.resetAllRolesToUser);
   const deleteConflicts = useMutation(api.migrations.deleteConflictTickets);
+
+  // Check admin access
+  if (isLoaded && !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white rounded-xl shadow-md p-8 max-w-md">
+          <div className="flex flex-col items-center text-center">
+            <Shield className="w-16 h-16 text-red-600 mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+            <p className="text-gray-600 mb-4">You must be signed in to access this page.</p>
+            <button
+              onClick={() => router.push("/")}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoaded && user?.primaryEmailAddress?.emailAddress !== ADMIN_EMAIL) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white rounded-xl shadow-md p-8 max-w-md">
+          <div className="flex flex-col items-center text-center">
+            <Shield className="w-16 h-16 text-red-600 mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+            <p className="text-gray-600 mb-4">
+              This page is restricted to administrators only.
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              Your email: {user?.primaryEmailAddress?.emailAddress}
+            </p>
+            <button
+              onClick={() => router.push("/")}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleMigration = async () => {
     if (!confirm("Bạn có chắc muốn chạy migration? Điều này sẽ cập nhật role cho tất cả users dựa trên việc họ có tạo event hay không.")) {
@@ -85,6 +137,19 @@ export default function MigrationPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Admin Badge */}
+        <div className="mb-6 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl shadow-lg p-4">
+          <div className="flex items-center gap-3 text-white">
+            <Shield className="w-6 h-6" />
+            <div>
+              <p className="font-semibold">Admin Access</p>
+              <p className="text-sm text-purple-100">
+                Logged in as: {user?.primaryEmailAddress?.emailAddress}
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Data Migration</h1>
           <p className="text-gray-600">
