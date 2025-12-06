@@ -7,6 +7,9 @@ import logo from "@/images/logo.png";
 import SearchBar from "./SearchBar";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Shield } from "lucide-react";
+
+const ADMIN_EMAIL = "dodinhkhang8@gmail.com";
 
 function Header() {
   const { user } = useUser();
@@ -14,6 +17,8 @@ function Header() {
     api.users.getUserRole,
     user?.id ? { userId: user.id } : "skip"
   );
+
+  const isAdmin = user?.primaryEmailAddress?.emailAddress === ADMIN_EMAIL;
 
   return (
     <div className="border-b">
@@ -79,6 +84,17 @@ function Header() {
                   </Link>
                 </>
               )}
+              
+              {/* Admin Button - chỉ hiển thị cho admin */}
+              {isAdmin && (
+                <Link href="/admin/migration">
+                  <button className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-3 py-1.5 text-sm rounded-lg hover:from-purple-700 hover:to-blue-700 transition flex items-center gap-2 shadow-md">
+                    <Shield className="w-4 h-4" />
+                    Admin
+                  </button>
+                </Link>
+              )}
+              
               <Link href="/settings">
                 <button className="bg-purple-100 text-purple-800 px-3 py-1.5 text-sm rounded-lg hover:bg-purple-200 transition border border-purple-300">
                   Settings
@@ -98,7 +114,7 @@ function Header() {
         </div>
 
         {/* Mobile Action Buttons */}
-        <div className="lg:hidden w-full flex justify-center gap-3">
+        <div className="lg:hidden w-full flex justify-center gap-2">
           <SignedIn>
             {userRole === "organizer" ? (
               <>
@@ -117,6 +133,16 @@ function Header() {
               <Link href="/tickets" className="flex-1">
                 <button className="w-full bg-gray-100 text-gray-800 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-200 transition border border-gray-300">
                   My Tickets
+                </button>
+              </Link>
+            )}
+            
+            {/* Admin Button Mobile - chỉ hiển thị cho admin */}
+            {isAdmin && (
+              <Link href="/admin/migration">
+                <button className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-3 py-1.5 text-sm rounded-lg hover:from-purple-700 hover:to-blue-700 transition flex items-center gap-2 shadow-md">
+                  <Shield className="w-4 h-4" />
+                  Admin
                 </button>
               </Link>
             )}
