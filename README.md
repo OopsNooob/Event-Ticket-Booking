@@ -1,8 +1,53 @@
-# Ticketr - Real-time Event Ticketing Platform
+# Ticketr - Real-time Event Ticketing Platform (Fork)
 
-A modern, real-time event ticketing platform built with Next.js 14, Convex, Clerk. Features a sophisticated queue system, real-time updates, and secure payment processing.
+> **Note**: This is a forked repository from the original [Zero to Full Stack Hero Course Project](https://www.papareact.com/course). This version includes significant enhancements and new features beyond the original implementation.
 
-## Features
+A modern, real-time event ticketing platform built with Next.js 15, Convex, Clerk, and Nodemailer. Features a sophisticated queue system, real-time updates, role-based access control, and email ticket delivery.
+
+## 🆕 New Features & Enhancements (Fork-Specific)
+
+### Role-Based Access Control System
+- 👥 **User Role**: Can only browse events and purchase tickets
+- 🎭 **Event Organizer Role**: Can only create and manage events
+- 🔒 **Role Validation**: Automatic checks prevent conflicts
+  - Users with purchased tickets cannot become organizers
+  - Organizers with created events cannot become users
+- ⚙️ **Settings Page**: Easy role switching with real-time validation
+- 🛡️ **Admin Panel**: Restricted migration tools for data management
+
+### Email Ticket Delivery
+- 📧 **Nodemailer Integration**: Email tickets with QR codes using Gmail SMTP
+- 🎫 **Automated Sending**: Tickets sent immediately after purchase
+- 📷 **QR Code Generation**: Each ticket includes a unique QR code
+- 💾 **Ticket Download**: Users can download tickets as PNG images
+
+### Enhanced Location Management
+- 🗺️ **Leaflet Map Integration**: Interactive map for location selection
+- 📍 **Click-to-Select**: Click anywhere on the map to set event location
+- 🔍 **Reverse Geocoding**: Automatic address lookup from coordinates
+- 🌐 **OpenStreetMap**: Free map tiles without API keys
+
+### Improved Ticket Management
+- 🎴 **Card Grid Layout**: Beautiful ticket cards with event images
+- 🔍 **Search Functionality**: Search tickets by event name, location, or ID
+- 📊 **Modal Details**: Click tickets to view detailed information
+- ⏰ **Auto-Update Status**: Expired tickets automatically marked
+- 💾 **Image Download**: Download tickets as PNG with QR codes
+
+### Seller Dashboard Enhancements
+- 📈 **Real-time Stats**: Accurate ticket sold counts
+- 👥 **Buyer List**: View all ticket purchasers for each event
+- 📋 **Tabs Navigation**: Separate upcoming and past events
+- 🔄 **Live Updates**: Real-time synchronization with Convex
+
+### Data Migration Tools
+- 🔧 **Admin Migration Page**: Tools for role assignment and data cleanup
+- 🔄 **Automatic Role Assignment**: Assign roles based on user behavior
+- 🗑️ **Conflict Resolution**: Delete conflicting tickets from organizers
+- 📊 **Status Dashboard**: Overview of users, roles, and tickets
+- 🛡️ **Admin-Only Access**: Restricted to specific admin email
+
+## Original Features
 
 ### For Event Attendees
 
@@ -59,11 +104,27 @@ A modern, real-time event ticketing platform built with Next.js 14, Convex, Cler
 Create a `.env.local` file with:
 
 ```bash
+# Convex
 NEXT_PUBLIC_CONVEX_URL=your_convex_url
+
+# Clerk Authentication
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_key
 CLERK_SECRET_KEY=your_clerk_secret
+
+# App Configuration
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Email Configuration (New)
+GMAIL_USER=your_gmail_address@gmail.com
+GMAIL_APP_PASSWORD=your_gmail_app_password
+
+# Optional: Resend API (if using Resend instead of Gmail)
+RESEND_API_KEY=your_resend_api_key
 ```
+
+**Note on Email Setup:**
+- For Gmail SMTP: Use [Google App Passwords](https://support.google.com/accounts/answer/185833)
+- For Resend: Get API key from [Resend Dashboard](https://resend.com/)
 
 ### Installation
 
@@ -73,6 +134,12 @@ git clone https://github.com/OopsNooob/Event-Ticket-Booking
 
 # Install dependencies
 npm install
+
+# Install additional dependencies for new features
+npm install nodemailer qrcode leaflet react-leaflet html2canvas
+
+# Note: Use --legacy-peer-deps if needed for Leaflet
+npm install leaflet react-leaflet --legacy-peer-deps
 
 # Start the development server
 npm run dev
@@ -135,21 +202,46 @@ Note: Keep the Convex development server running while working on your project. 
 
 ## Architecture
 
-### Database Schema
+### Database Schema (Updated)
 
-- Events
-- Tickets
-- Waiting List
-- Users
-- Payments
+- **Events**: Event details with location coordinates
+- **Tickets**: Ticket records with status tracking
+- **Waiting List**: Queue management
+- **Users**: User profiles with role field (user/organizer)
+- **Payments**: Payment transaction records
+
+### New Schema Changes
+```typescript
+// Users table now includes role field
+users: {
+  userId: string,
+  email: string,
+  name?: string,
+  role?: "user" | "organizer"  // NEW: Role-based access control
+}
+
+// Events table includes coordinates for map
+events: {
+  // ... existing fields
+  location: string  // Can store coordinates from map selection
+}
+```
 
 ### Key Components
 
+**Original:**
 - Real-time queue management
 - Rate limiting
 - Automated offer expiration
 - Payment processing
 - User synchronization
+
+**New Components:**
+- **RoleGuard**: Route protection based on user roles
+- **LeafletLocationPicker**: Interactive map for location selection
+- **Email Service** (`lib/email.ts`): Nodemailer integration for ticket delivery
+- **Migration Tools** (`convex/migrations.ts`): Admin tools for data management
+- **Enhanced Ticket View**: Card-based layout with search and download
 
 ## Usage
 
@@ -223,3 +315,132 @@ Built with ❤️ for the PAPAFAM
    - Progress indicators
    - Skeleton loaders
    - Smooth transitions
+
+## 📝 Detailed Changes from Original Repository
+
+### 1. Role-Based Access Control
+**Files Added/Modified:**
+- `convex/schema.ts`: Added `role` field to users table
+- `convex/users.ts`: Added `getUserRole`, `canSwitchRole`, `updateUserRole`
+- `components/RoleGuard.tsx`: NEW - Route protection component
+- `app/settings/page.tsx`: NEW - Role switching interface
+- `ROLE_IMPLEMENTATION.md`: NEW - Complete documentation
+
+**Features:**
+- Separate User and Event Organizer roles
+- Validation prevents conflicts (users with tickets can't become organizers, vice versa)
+- Protected routes for seller pages and ticket pages
+- Dynamic header navigation based on role
+
+### 2. Email Ticket Delivery
+**Files Added/Modified:**
+- `lib/email.ts`: NEW - Nodemailer configuration with Gmail SMTP
+- `app/actions/sendTicketEmail.ts`: NEW - Server action for sending emails
+- `app/actions/purchaseTicket.ts`: Modified to trigger email after purchase
+- `convex/events.ts`: Updated `purchaseTicket` to return `ticketId`
+
+**Features:**
+- Automatic email sending after ticket purchase
+- QR code generation and embedding
+- Configurable Gmail SMTP or Resend API
+- Detailed logging for debugging
+
+### 3. Interactive Map Location Selection
+**Files Added/Modified:**
+- `components/LeafletLocationPicker.tsx`: NEW - Map component with Leaflet
+- `components/EventForm.tsx`: Modified to use map picker
+- `package.json`: Added leaflet, react-leaflet dependencies
+
+**Features:**
+- Click anywhere on map to select location
+- Reverse geocoding for address lookup
+- OpenStreetMap tiles (no API key required)
+- Mobile-responsive map interface
+
+### 4. Enhanced Ticket Management UI
+**Files Modified:**
+- `app/tickets/page.tsx`: Complete redesign with card grid
+- `app/tickets/[id]/page.tsx`: Ticket detail view
+- `components/TicketCard.tsx`: Reusable ticket card component
+
+**Features:**
+- Card-based layout with event images
+- Search by event name, location, or ticket ID
+- Modal for detailed ticket view
+- Download ticket as PNG with QR code
+- Auto-update expired tickets
+- Status badges (valid, used, expired)
+
+### 5. Seller Dashboard Improvements
+**Files Added/Modified:**
+- `app/seller/events/page.tsx`: Modified with tabs for upcoming/past events
+- `app/seller/events/EventList.tsx`: NEW - Event list component
+- `app/seller/events/[id]/page.tsx`: NEW - Event details with buyer list
+- `convex/events.ts`: Added `getEventById`, `getSellerEventsWithStats`
+- `components/ui/tabs.tsx`: NEW - Custom tabs component
+
+**Features:**
+- Real-time ticket sold counts (fixed from showing 0)
+- View all ticket buyers for each event
+- Separate tabs for upcoming and past events
+- Click events to see detailed information
+
+### 6. Admin Migration Tools
+**Files Added:**
+- `app/admin/migration/page.tsx`: NEW - Admin dashboard for data management
+- `convex/migrations.ts`: NEW - Migration functions
+- `components/Header.tsx`: Modified to show Admin button for authorized email
+
+**Features:**
+- Auto-assign roles based on user behavior (created events = organizer)
+- Delete conflict tickets (organizers with purchased tickets)
+- View users without roles
+- Statistics dashboard
+- Restricted access to admin email only
+
+### 7. Bug Fixes & Improvements
+- Fixed TypeScript errors with `ticketId` return type
+- Fixed image display using `useStorageUrl` hook
+- Fixed ticket sold count showing 0 (now uses real-time query)
+- Added proper SSR handling for map components
+- Improved error handling and user feedback
+
+### 8. Dependencies Added
+```json
+{
+  "nodemailer": "^6.9.x",
+  "qrcode": "^1.5.x",
+  "leaflet": "^1.9.x",
+  "react-leaflet": "^4.2.x",
+  "html2canvas": "^1.4.x"
+}
+```
+
+## 🔄 Migration Guide (For Existing Users)
+
+If you're migrating from the original repository:
+
+1. **Update Environment Variables**: Add Gmail credentials
+2. **Update Schema**: Run Convex migration to add role field
+3. **Assign Roles**: Use admin migration page to assign roles
+4. **Clean Conflicts**: Delete any conflict tickets
+5. **Test**: Verify role-based access works correctly
+
+## 🤝 Contributing
+
+This is a fork with custom enhancements. To contribute:
+
+1. Fork this repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📄 License
+
+Same as original repository. Built as an educational project based on the Zero to Full Stack Hero course.
+
+## 🙏 Credits
+
+- **Original Course**: [Zero to Full Stack Hero 2.0](https://www.papareact.com/course) by Sonny Sangha
+- **Fork Maintainer**: OopsNooob
+- **Enhancements**: Role-based access, email delivery, map integration, improved UI/UX
