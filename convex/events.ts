@@ -122,19 +122,25 @@ export const joinWaitingList = mutation({
       );
     }
 
-    // First check if user already has an active entry in waiting list for this event
-    // Active means any status except EXPIRED
+    // Check if user already has an active entry in waiting list for this event
+    // Active means WAITING or OFFERED status (not EXPIRED or PURCHASED)
+    // Users can buy multiple times, so PURCHASED entries don't block new purchases
     const existingEntry = await ctx.db
       .query("waitingList")
       .withIndex("by_user_event", (q) =>
         q.eq("userId", userId).eq("eventId", eventId)
       )
-      .filter((q) => q.neq(q.field("status"), WAITING_LIST_STATUS.EXPIRED))
+      .filter((q) => 
+        q.or(
+          q.eq(q.field("status"), WAITING_LIST_STATUS.WAITING),
+          q.eq(q.field("status"), WAITING_LIST_STATUS.OFFERED)
+        )
+      )
       .first();
 
-    // Don't allow duplicate entries
+    // Don't allow duplicate active entries (only block if currently waiting or has active offer)
     if (existingEntry) {
-      throw new Error("Already in waiting list for this event");
+      throw new Error("You already have an active entry in the waiting list for this event");
     }
 
     // Verify the event exists
@@ -213,12 +219,14 @@ export const purchaseTicket = mutation({
     userId: v.string(),
     waitingListId: v.id("waitingList"),
     paymentMethod: v.string(),
+    quantity: v.optional(v.number()),
   },
-  handler: async (ctx, { eventId, userId, waitingListId, paymentMethod }) => {
+  handler: async (ctx, { eventId, userId, waitingListId, paymentMethod, quantity = 1 }) => {
     console.log("Starting purchaseTicket handler", {
       eventId,
       userId,
       waitingListId,
+      quantity,
     });
 
     // Verify waiting list entry exists and is valid
@@ -261,46 +269,100 @@ export const purchaseTicket = mutation({
       throw new Error("Event is no longer active");
     }
 
+    // Check availability before purchase
+    const purchasedCount = await ctx.db
+      .query("tickets")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .collect()
+      .then(
+        (tickets) =>
+          tickets.filter(
+            (t) =>
+              t.status === TICKET_STATUS.VALID ||
+              t.status === TICKET_STATUS.USED
+          ).length
+      );
+
+    const now = Date.now();
+    const activeOffers = await ctx.db
+      .query("waitingList")
+      .withIndex("by_event_status", (q) =>
+        q.eq("eventId", eventId).eq("status", WAITING_LIST_STATUS.OFFERED)
+      )
+      .collect()
+      .then(
+        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+      );
+
+    const availableSpots = event.totalTickets - purchasedCount - activeOffers;
+
+    console.log("Availability check:", {
+      totalTickets: event.totalTickets,
+      purchasedCount,
+      activeOffers,
+      availableSpots,
+      requestedQuantity: quantity,
+    });
+
+    if (quantity > availableSpots) {
+      throw new Error(
+        `Not enough tickets available. Only ${availableSpots} ticket${availableSpots !== 1 ? 's' : ''} remaining.`
+      );
+    }
+
+    if (quantity < 1) {
+      throw new Error("Quantity must be at least 1");
+    }
+
+    if (quantity > event.totalTickets) {
+      throw new Error(`Cannot purchase more than ${event.totalTickets} tickets (total event capacity)`);
+    }
+
     try {
-      console.log("Creating payment record");
-      // Create payment record
+      console.log(`Creating payment record for ${quantity} ticket(s)`);
+      // Create payment record with total amount
+      const totalAmount = event.price * quantity;
       const paymentId = await ctx.db.insert("payments", {
         eventId,
         userId,
-        amount: event.price,
+        amount: totalAmount,
         paymentMethod,
         status: "completed",
         createdAt: Date.now(),
         completedAt: Date.now(),
       });
 
-      console.log("Creating ticket with payment info");
-      // Create ticket
-      const ticketId = await ctx.db.insert("tickets", {
-        eventId,
-        userId,
-        purchasedAt: Date.now(),
-        status: TICKET_STATUS.VALID,
-        paymentId,
-        amount: event.price,
-      });
+      console.log(`Creating ${quantity} ticket(s) with payment info`);
+      // Create multiple tickets
+      const ticketIds = await Promise.all(
+        Array.from({ length: quantity }, async () => {
+          return await ctx.db.insert("tickets", {
+            eventId,
+            userId,
+            purchasedAt: Date.now(),
+            status: TICKET_STATUS.VALID,
+            paymentId,
+            amount: event.price,
+          });
+        })
+      );
 
-      console.log("Ticket created with ID:", ticketId);
+      console.log(`${quantity} ticket(s) created with IDs:`, ticketIds);
 
-      console.log("Updating waiting list status to purchased");
-      await ctx.db.patch(waitingListId, {
-        status: WAITING_LIST_STATUS.PURCHASED,
-      });
+      console.log("Deleting waiting list entry (no longer needed after purchase)");
+      // Delete the waiting list entry instead of marking as purchased
+      // This keeps the database clean and prevents any conflicts with future purchases
+      await ctx.db.delete(waitingListId);
 
       console.log("Processing queue for next person using scheduler");
       await ctx.scheduler.runAfter(0, internal.waitingList.processQueueInternal, {
         eventId,
       });
 
-      console.log("Purchase ticket completed successfully");
+      console.log("Purchase tickets completed successfully");
       
-      // This line should include ticketId
-      return { success: true, paymentId, ticketId };
+      // Return array of ticket IDs
+      return { success: true, paymentId, ticketIds };
     } catch (error) {
       console.error("Failed to complete ticket purchase:", error);
       throw new Error(`Failed to complete ticket purchase: ${error}`);

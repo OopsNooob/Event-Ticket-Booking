@@ -18,6 +18,24 @@ export const getUserTicketForEvent = query({
   },
 });
 
+// New query to get count of tickets user has for an event
+export const getUserTicketCountForEvent = query({
+  args: {
+    eventId: v.id("events"),
+    userId: v.string(),
+  },
+  handler: async (ctx, { eventId, userId }) => {
+    const tickets = await ctx.db
+      .query("tickets")
+      .withIndex("by_user_event", (q) =>
+        q.eq("userId", userId).eq("eventId", eventId)
+      )
+      .collect();
+
+    return tickets.length;
+  },
+});
+
 export const getTicketWithDetails = query({
   args: { ticketId: v.id("tickets") },
   handler: async (ctx, { ticketId }) => {

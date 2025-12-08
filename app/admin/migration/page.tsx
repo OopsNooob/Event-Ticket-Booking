@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, AlertCircle, Users, RefreshCw, Ticket, Trash2, Shield } from "lucide-react";
+import { CheckCircle, XCircle, AlertCircle, Users, RefreshCw, Ticket, Trash2, Shield, AlertTriangle, UserX } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
@@ -19,10 +19,14 @@ export default function MigrationPage() {
   const usersWithEvents = useQuery(api.migrations.getUsersWithEvents);
   const conflictTickets = useQuery(api.migrations.findConflictTickets);
   const ticketsOverview = useQuery(api.migrations.getTicketsOverview);
+  const purchasedWaitingList = useQuery(api.migrations.checkPurchasedWaitingListEntries);
+  const oversoldEvents = useQuery(api.migrations.checkOversoldEvents);
   
   const migrateRoles = useMutation(api.migrations.migrateUserRoles);
   const resetRoles = useMutation(api.migrations.resetAllRolesToUser);
   const deleteConflicts = useMutation(api.migrations.deleteConflictTickets);
+  const expireWaitingList = useMutation(api.migrations.expirePurchasedWaitingListEntries);
+  const deleteWaitingList = useMutation(api.migrations.deletePurchasedWaitingListEntries);
 
   // Check admin access
   if (isLoaded && !user) {
@@ -126,7 +130,51 @@ export default function MigrationPage() {
     }
   };
 
-  if (!status || !usersWithEvents || !conflictTickets || !ticketsOverview) {
+  const handleExpireWaitingList = async () => {
+    if (!purchasedWaitingList || purchasedWaitingList.totalPurchasedEntries === 0) {
+      toast.error("No purchased waiting list entries to expire");
+      return;
+    }
+
+    if (!confirm(`Bạn có chắc muốn expire ${purchasedWaitingList.totalPurchasedEntries} waiting list entries? Điều này sẽ cho phép users mua ticket lại từ các events đã mua.`)) {
+      return;
+    }
+    
+    setIsRunning(true);
+    try {
+      const result = await expireWaitingList();
+      toast.success(result.message);
+    } catch (error) {
+      toast.error("Expire failed: " + error);
+      console.error(error);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const handleDeleteWaitingList = async () => {
+    if (!purchasedWaitingList || purchasedWaitingList.totalPurchasedEntries === 0) {
+      toast.error("No purchased waiting list entries to delete");
+      return;
+    }
+
+    if (!confirm(`⚠️ CẢNH BÁO: Bạn có chắc muốn XÓA HOÀN TOÀN ${purchasedWaitingList.totalPurchasedEntries} waiting list entries? Hành động này KHÔNG THỂ HOÀN TÁC!`)) {
+      return;
+    }
+    
+    setIsRunning(true);
+    try {
+      const result = await deleteWaitingList();
+      toast.success(result.message);
+    } catch (error) {
+      toast.error("Delete failed: " + error);
+      console.error(error);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  if (!status || !usersWithEvents || !conflictTickets || !ticketsOverview || !purchasedWaitingList || !oversoldEvents) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -385,6 +433,157 @@ export default function MigrationPage() {
           </div>
         )}
 
+        {/* Purchased Waiting List Entries */}
+        {purchasedWaitingList.totalPurchasedEntries > 0 && (
+          <div className="bg-white rounded-xl shadow-md p-8 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Purchased Waiting List Entries Migration
+                </h2>
+                <p className="text-gray-600 mt-2">
+                  Found {purchasedWaitingList.totalPurchasedEntries} old waiting list entries blocking repurchases
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleExpireWaitingList}
+                  disabled={isRunning}
+                  className="px-6 py-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-semibold disabled:opacity-50 flex items-center gap-2"
+                >
+                  <AlertTriangle className="w-5 h-5" />
+                  Expire Entries
+                </button>
+                <button
+                  onClick={handleDeleteWaitingList}
+                  disabled={isRunning}
+                  className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  Delete Entries
+                </button>
+              </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-200">
+                <div className="flex items-start gap-4">
+                  <AlertTriangle className="w-8 h-8 text-yellow-600 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Total Entries
+                    </h3>
+                    <p className="text-3xl font-bold text-yellow-600">
+                      {purchasedWaitingList.totalPurchasedEntries}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Waiting list entries with PURCHASED status
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
+                <div className="flex items-start gap-4">
+                  <UserX className="w-8 h-8 text-blue-600 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Affected Users
+                    </h3>
+                    <p className="text-3xl font-bold text-blue-600">
+                      {purchasedWaitingList.affectedUsers}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Users who cannot repurchase tickets
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Warning Message */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <div className="flex gap-3">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-yellow-800">
+                  <p className="font-semibold mb-1">Vấn đề:</p>
+                  <p className="mb-2">
+                    Các waiting list entries này được tạo trước khi feature "mua nhiều lần từ cùng một event" được implement. 
+                    Chúng có status là PURCHASED và đang block users khỏi việc mua thêm tickets từ cùng event đó.
+                  </p>
+                  <p className="font-semibold mb-1">Giải pháp:</p>
+                  <p>
+                    Migration này sẽ thay đổi status của các entries này từ PURCHASED → EXPIRED, 
+                    cho phép users mua tickets lại từ các events đã mua trước đây.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Entries Table */}
+            <div className="mt-6 overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      User ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Entries Count
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Unique Events
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Total Tickets
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {purchasedWaitingList.details.slice(0, 10).map((detail: any, idx: number) => (
+                    <tr key={idx}>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="font-mono text-xs text-gray-600">{detail.userId}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">
+                          {detail.purchasedEntriesCount}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {detail.uniqueEventsCount}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {detail.totalTicketsOwned}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {purchasedWaitingList.details.length > 10 && (
+                <p className="text-sm text-gray-500 mt-2 text-center">
+                  Showing 10 of {purchasedWaitingList.details.length} users
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {purchasedWaitingList.totalPurchasedEntries === 0 && (
+          <div className="bg-white rounded-xl shadow-md p-8 mb-8 border-2 border-green-500">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">No Purchased Entries Found</h2>
+                <p className="text-gray-600">
+                  Không có waiting list entries với status PURCHASED. Users có thể mua tickets bình thường! ✓
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Users Without Role */}
         {status.usersWithoutRole.length > 0 && (
           <div className="bg-white rounded-xl shadow-md p-8 mb-8">
@@ -488,6 +687,129 @@ export default function MigrationPage() {
             </table>
           </div>
         </div>
+
+        {/* Debug Info */}
+        <div className="bg-white rounded-xl shadow-md p-8 mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            🔍 Waiting List Status
+          </h2>
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-700 font-mono">
+              Purchased entries count: <span className="font-bold text-lg">{purchasedWaitingList.totalPurchasedEntries}</span>
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              {purchasedWaitingList.totalPurchasedEntries === 0 
+                ? "✅ Tất cả purchased entries đã được xóa/expire. Users có thể mua tickets bình thường!"
+                : "⚠️ Còn purchased entries trong database. Hãy chạy migration để xóa chúng."
+              }
+            </p>
+          </div>
+        </div>
+
+        {/* Oversold Events Warning */}
+        {oversoldEvents.totalOversoldEvents > 0 && (
+          <div className="bg-white rounded-xl shadow-md p-8 mb-8 border-2 border-red-500">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-red-900 flex items-center gap-3">
+                  <AlertTriangle className="w-8 h-8 text-red-600" />
+                  Oversold Events Detected!
+                </h2>
+                <p className="text-red-600 mt-2 font-semibold">
+                  {oversoldEvents.totalOversoldEvents} event(s) have more tickets sold than available
+                </p>
+              </div>
+            </div>
+
+            {/* Warning Message */}
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <div className="flex gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-red-800">
+                  <p className="font-semibold mb-1">⚠️ CRITICAL ISSUE:</p>
+                  <p className="mb-2">
+                    Một số events đã bán VƯỢT QUÁ tổng số vé available. Điều này xảy ra do:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 mb-2">
+                    <li>Thiếu validation khi purchase</li>
+                    <li>Race condition khi nhiều users mua cùng lúc</li>
+                    <li>Bug trong logic check availability</li>
+                  </ul>
+                  <p className="font-semibold mb-1">Giải pháp:</p>
+                  <p>
+                    Bạn cần tăng totalTickets của event hoặc refund một số tickets. 
+                    Đã thêm validation mới để ngăn chặn vấn đề này trong tương lai.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Events Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Event Name
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Total Tickets
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Sold Tickets
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Oversold By
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {oversoldEvents.events.map((event: any) => (
+                    <tr key={event.eventId} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        {event.eventName}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {event.totalTickets}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                          {event.soldTickets}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-600 text-white">
+                          +{event.oversold} tickets
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>✅ Fix đã được apply:</strong> Bây giờ hệ thống có validation ngăn chặn mua vượt quá số vé available. 
+                Bạn cần manually fix các events trên bằng cách tăng totalTickets hoặc refund tickets.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {oversoldEvents.totalOversoldEvents === 0 && (
+          <div className="bg-white rounded-xl shadow-md p-8 mb-8 border-2 border-green-500">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">No Oversold Events</h2>
+                <p className="text-gray-600">
+                  ✅ Tất cả events đều có số vé bán ra hợp lệ!
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -14,7 +14,10 @@ export default function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
   const { user } = useUser();
   const [isLoading, setIsLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("card");
+  const [quantity, setQuantity] = useState(1);
 
+  const event = useQuery(api.events.getById, { eventId });
+  const availability = useQuery(api.events.getEventAvailability, { eventId });
   const queuePosition = useQuery(api.waitingList.getQueuePosition, {
     eventId,
     userId: user?.id ?? "",
@@ -23,6 +26,11 @@ export default function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
   const releaseTicket = useMutation(api.waitingList.releaseTicket);
   const joinWaitingList = useMutation(api.events.joinWaitingList);
 
+  // Calculate available spots
+  const availableSpots = availability 
+    ? availability.totalTickets - availability.purchasedCount - availability.activeOffers
+    : 0;
+
   const handlePurchase = async () => {
     if (!user || !queuePosition) return;
 
@@ -30,6 +38,7 @@ export default function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
     console.log("Event ID:", eventId);
     console.log("Queue Position ID:", queuePosition._id);
     console.log("Payment Method:", paymentMethod);
+    console.log("Quantity:", quantity);
 
     setIsLoading(true);
     try {
@@ -39,6 +48,7 @@ export default function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
         eventId,
         waitingListId: queuePosition._id,
         paymentMethod,
+        quantity,
       });
 
       console.log("✅ Purchase action completed:", result);
@@ -79,6 +89,13 @@ export default function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
       alert(error instanceof Error ? error.message : "Failed to join queue");
     }
   };
+
+  // Reset quantity when availableSpots changes or when component mounts
+  useEffect(() => {
+    if (availableSpots > 0 && quantity > availableSpots) {
+      setQuantity(Math.min(1, availableSpots));
+    }
+  }, [availableSpots, quantity]);
 
   useEffect(() => {
     // Add null check for queuePosition
@@ -140,6 +157,27 @@ export default function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
 
         <div className="space-y-3">
           <label className="block">
+            <span className="text-gray-700 font-medium">Number of Tickets</span>
+            <input
+              type="number"
+              min="1"
+              max={availableSpots}
+              value={quantity}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 1;
+                setQuantity(Math.max(1, Math.min(val, availableSpots)));
+              }}
+              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              Price per ticket: ${event?.price || 0} • Total: ${(event?.price || 0) * quantity}
+            </p>
+            <p className="text-sm text-blue-600 mt-1 font-semibold">
+              {availableSpots} ticket{availableSpots !== 1 ? 's' : ''} available (You can buy up to {availableSpots})
+            </p>
+          </label>
+
+          <label className="block">
             <span className="text-gray-700 font-medium">Payment Method</span>
             <select
               value={paymentMethod}
@@ -158,7 +196,7 @@ export default function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
             disabled={isLoading}
             className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:bg-gray-400"
           >
-            {isLoading ? "Processing..." : "Complete Purchase"}
+            {isLoading ? "Processing..." : `Purchase ${quantity} Ticket${quantity > 1 ? 's' : ''}`}
           </button>
 
           <button

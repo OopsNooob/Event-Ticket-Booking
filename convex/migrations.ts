@@ -234,3 +234,230 @@ export const getTicketsOverview = query({
     };
   },
 });
+
+// Query để kiểm tra waiting list entries đã PURCHASED
+export const checkPurchasedWaitingListEntries = query({
+  handler: async (ctx) => {
+    const waitingList = await ctx.db.query("waitingList").collect();
+    const tickets = await ctx.db.query("tickets").collect();
+    const events = await ctx.db.query("events").collect();
+    
+    const purchasedEntries = waitingList.filter(entry => entry.status === "purchased");
+    
+    // Group by user and event
+    const groupedByUser = purchasedEntries.reduce((acc, entry) => {
+      const key = entry.userId;
+      if (!acc[key]) {
+        acc[key] = {
+          userId: entry.userId,
+          entries: [],
+          events: new Set(),
+        };
+      }
+      acc[key].entries.push(entry);
+      acc[key].events.add(entry.eventId);
+      return acc;
+    }, {} as Record<string, { userId: string; entries: any[]; events: Set<string> }>);
+
+    const summary = Object.values(groupedByUser).map(group => {
+      const userTickets = tickets.filter(t => t.userId === group.userId);
+      return {
+        userId: group.userId,
+        purchasedEntriesCount: group.entries.length,
+        uniqueEventsCount: group.events.size,
+        totalTicketsOwned: userTickets.length,
+        entries: group.entries.map(entry => {
+          const event = events.find(e => e._id === entry.eventId);
+          return {
+            entryId: entry._id,
+            eventId: entry.eventId,
+            eventName: event?.name,
+            status: entry.status,
+            createdAt: entry._creationTime,
+          };
+        }),
+      };
+    });
+
+    return {
+      totalPurchasedEntries: purchasedEntries.length,
+      affectedUsers: Object.keys(groupedByUser).length,
+      details: summary,
+    };
+  },
+});
+
+// Mutation để expire các waiting list entries đã PURCHASED (cho phép mua lại)
+export const expirePurchasedWaitingListEntries = mutation({
+  handler: async (ctx) => {
+    const waitingList = await ctx.db.query("waitingList").collect();
+    
+    const purchasedEntries = waitingList.filter(entry => entry.status === "purchased");
+    
+    let expired = 0;
+    let errors = 0;
+    
+    for (const entry of purchasedEntries) {
+      try {
+        await ctx.db.patch(entry._id, { 
+          status: "expired",
+        });
+        expired++;
+      } catch (error) {
+        console.error(`Error expiring waiting list entry ${entry._id}:`, error);
+        errors++;
+      }
+    }
+    
+    return {
+      success: true,
+      totalPurchasedEntries: purchasedEntries.length,
+      expired,
+      errors,
+      message: `Expired ${expired} purchased waiting list entries, ${errors} errors. Users can now purchase tickets again.`,
+    };
+  },
+});
+
+// Mutation XÓA HOÀN TOÀN các entries "purchased" (không chỉ expire)
+// Dùng khi expire không giải quyết được vấn đề
+export const deletePurchasedWaitingListEntries = mutation({
+  handler: async (ctx) => {
+    const waitingList = await ctx.db.query("waitingList").collect();
+    
+    const purchasedEntries = waitingList.filter(entry => entry.status === "purchased");
+    
+    let deleted = 0;
+    let errors = 0;
+    
+    for (const entry of purchasedEntries) {
+      try {
+        await ctx.db.delete(entry._id);
+        deleted++;
+      } catch (error) {
+        console.error(`Error deleting waiting list entry ${entry._id}:`, error);
+        errors++;
+      }
+    }
+    
+    return {
+      success: true,
+      totalPurchasedEntries: purchasedEntries.length,
+      deleted,
+      errors,
+      message: `Deleted ${deleted} purchased waiting list entries, ${errors} errors. Users can now purchase tickets again.`,
+    };
+  },
+});
+
+// Query để kiểm tra xem user có thể mua ticket từ event không
+export const checkUserCanPurchase = query({
+  args: {
+    userId: v.string(),
+    eventId: v.id("events"),
+  },
+  handler: async (ctx, { userId, eventId }) => {
+    const waitingList = await ctx.db
+      .query("waitingList")
+      .withIndex("by_user_event", (q) =>
+        q.eq("userId", userId).eq("eventId", eventId)
+      )
+      .collect();
+    
+    const activeEntries = waitingList.filter(
+      entry => entry.status === "waiting" || entry.status === "offered"
+    );
+    
+    const purchasedEntries = waitingList.filter(
+      entry => entry.status === "purchased"
+    );
+    
+    const expiredEntries = waitingList.filter(
+      entry => entry.status === "expired"
+    );
+    
+    const tickets = await ctx.db
+      .query("tickets")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .collect();
+    
+    const ticketsForEvent = tickets.filter(t => t.eventId === eventId);
+    
+    return {
+      canPurchase: activeEntries.length === 0,
+      reason: activeEntries.length > 0 
+        ? "User has active waiting list entry (WAITING or OFFERED)"
+        : "User can purchase",
+      waitingListEntries: {
+        active: activeEntries.length,
+        purchased: purchasedEntries.length,
+        expired: expiredEntries.length,
+      },
+      ticketsOwned: ticketsForEvent.length,
+      allEntries: waitingList.map(entry => ({
+        entryId: entry._id,
+        status: entry.status,
+        createdAt: entry._creationTime,
+      })),
+    };
+  },
+});
+
+// Query để debug tất cả waiting list entries của user
+export const getAllUserWaitingListEntries = query({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, { userId }) => {
+    const waitingList = await ctx.db
+      .query("waitingList")
+      .filter((q) => q.eq(q.field("userId"), userId))
+      .collect();
+    
+    const events = await ctx.db.query("events").collect();
+    
+    return waitingList.map(entry => {
+      const event = events.find(e => e._id === entry.eventId);
+      return {
+        entryId: entry._id,
+        eventName: event?.name || "Unknown Event",
+        eventId: entry.eventId,
+        status: entry.status,
+        offerExpiresAt: entry.offerExpiresAt,
+        createdAt: entry._creationTime,
+      };
+    });
+  },
+});
+
+// Query để check events có oversold (sold > total)
+export const checkOversoldEvents = query({
+  handler: async (ctx) => {
+    const events = await ctx.db.query("events").collect();
+    const tickets = await ctx.db.query("tickets").collect();
+    
+    const oversoldEvents = [];
+    
+    for (const event of events) {
+      const soldTickets = tickets.filter(
+        t => t.eventId === event._id && 
+        (t.status === "valid" || t.status === "used")
+      ).length;
+      
+      if (soldTickets > event.totalTickets) {
+        oversoldEvents.push({
+          eventId: event._id,
+          eventName: event.name,
+          totalTickets: event.totalTickets,
+          soldTickets,
+          oversold: soldTickets - event.totalTickets,
+        });
+      }
+    }
+    
+    return {
+      totalOversoldEvents: oversoldEvents.length,
+      events: oversoldEvents,
+    };
+  },
+});

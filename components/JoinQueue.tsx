@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { Id } from "@/convex/_generated/dataModel";
 import { WAITING_LIST_STATUS } from "@/convex/constants";
 import Spinner from "./Spinner";
+import PurchaseTicket from "./PurchaseTicket";
 import { Clock, OctagonXIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ConvexError } from "convex/values";
@@ -63,14 +64,24 @@ export default function JoinQueue({
     return <Spinner />;
   }
 
-  if (userTicket) {
-    return null;
-  }
+  // Removed the check that blocks users from buying multiple tickets
+  // Users can now purchase multiple tickets from the same event
+  // if (userTicket) {
+  //   return null;
+  // }
 
   const isPastEvent = event.eventDate < Date.now();
 
   return (
     <div>
+      {/* Show Purchase component when user has been offered a ticket */}
+      {queuePosition?.status === WAITING_LIST_STATUS.OFFERED && 
+       queuePosition.offerExpiresAt && 
+       queuePosition.offerExpiresAt > Date.now() && (
+        <PurchaseTicket eventId={eventId} />
+      )}
+
+      {/* Show Buy Ticket button when no active queue or queue is expired */}
       {(!queuePosition ||
         queuePosition.status === WAITING_LIST_STATUS.EXPIRED ||
         (queuePosition.status === WAITING_LIST_STATUS.OFFERED &&

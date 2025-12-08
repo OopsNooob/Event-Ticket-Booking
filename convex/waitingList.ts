@@ -36,12 +36,18 @@ export const getQueuePosition = query({
   },
   handler: async (ctx, { eventId, userId }) => {
     // Get entry for this specific user and event combination
+    // Only return WAITING or OFFERED entries (not EXPIRED or PURCHASED)
     const entry = await ctx.db
       .query("waitingList")
       .withIndex("by_user_event", (q) =>
         q.eq("userId", userId).eq("eventId", eventId)
       )
-      .filter((q) => q.neq(q.field("status"), WAITING_LIST_STATUS.EXPIRED))
+      .filter((q) => 
+        q.or(
+          q.eq(q.field("status"), WAITING_LIST_STATUS.WAITING),
+          q.eq(q.field("status"), WAITING_LIST_STATUS.OFFERED)
+        )
+      )
       .first();
 
     if (!entry) return null;

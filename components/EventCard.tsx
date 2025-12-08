@@ -29,6 +29,10 @@ export default function EventCard({ eventId }: { eventId: Id<"events"> }) {
     eventId,
     userId: user?.id ?? "",
   });
+  const userTicketCount = useQuery(api.tickets.getUserTicketCountForEvent, {
+    eventId,
+    userId: user?.id ?? "",
+  });
   const queuePosition = useQuery(api.waitingList.getQueuePosition, {
     eventId,
     userId: user?.id ?? "",
@@ -108,20 +112,25 @@ export default function EventCard({ eventId }: { eventId: Id<"events"> }) {
       );
     }
 
-    if (userTicket) {
+    if (userTicket && userTicketCount !== undefined) {
       return (
         <div className="mt-4 flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-100">
           <div className="flex items-center">
             <Check className="w-5 h-5 text-green-600 mr-2" />
-            <span className="text-green-700 font-medium">
-              You have a ticket!
-            </span>
+            <div>
+              <span className="text-green-700 font-medium block">
+                You have {userTicketCount} ticket{userTicketCount > 1 ? 's' : ''}!
+              </span>
+              <span className="text-green-600 text-xs">
+                You can buy more if needed
+              </span>
+            </div>
           </div>
           <button
-            onClick={() => router.push(`/tickets/${userTicket._id}`)}
+            onClick={() => router.push(`/tickets/event/${eventId}`)}
             className="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-full font-medium shadow-sm transition-colors duration-200 flex items-center gap-1"
           >
-            View your ticket
+            View tickets
           </button>
         </div>
       );
