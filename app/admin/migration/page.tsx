@@ -8,7 +8,7 @@ import { CheckCircle, XCircle, AlertCircle, Users, RefreshCw, Ticket, Trash2, Sh
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
-const ADMIN_EMAIL = "dodinhkhang8@gmail.com";
+const ADMIN_EMAILS = ["dodinhkhang8@gmail.com", "hoanghiepta2005@gmail.com"];
 
 export default function MigrationPage() {
   const { user, isLoaded } = useUser();
@@ -45,7 +45,7 @@ export default function MigrationPage() {
     );
   }
 
-  if (isLoaded && user?.primaryEmailAddress?.emailAddress !== ADMIN_EMAIL) {
+  if (isLoaded && !ADMIN_EMAILS.includes(user?.primaryEmailAddress?.emailAddress || "")) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="bg-white rounded-xl shadow-md p-8 max-w-md">

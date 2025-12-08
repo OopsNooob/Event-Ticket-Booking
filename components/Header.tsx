@@ -9,7 +9,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Shield } from "lucide-react";
 
-const ADMIN_EMAIL = "dodinhkhang8@gmail.com";
+const ADMIN_EMAILS = ["dodinhkhang8@gmail.com", "hoanghiepta2005@gmail.com"];
 
 function Header() {
   const { user } = useUser();
@@ -18,7 +18,7 @@ function Header() {
     user?.id ? { userId: user.id } : "skip"
   );
 
-  const isAdmin = user?.primaryEmailAddress?.emailAddress === ADMIN_EMAIL;
+  const isAdmin = ADMIN_EMAILS.includes(user?.primaryEmailAddress?.emailAddress || "");
 
   return (
     <div className="border-b">
