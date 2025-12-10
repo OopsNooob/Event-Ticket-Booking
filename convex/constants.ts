@@ -2,7 +2,7 @@ import { Doc } from "./_generated/dataModel";
 
 // Time constants in milliseconds
 export const DURATIONS = {
-  TICKET_OFFER: 30 * 60 * 1000, // 30 minutes (Minimum Stripe allows for checkout expiry)
+  TICKET_OFFER: 30 * 60 * 1000, // 30 minutes to complete purchase
 } as const;
 
 // Status types for better type safety

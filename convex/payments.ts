@@ -212,3 +212,98 @@ export const getSellerStats = query({
     };
   },
 });
+
+/**
+ * Get seller stats for a specific month
+ */
+export const getSellerStatsByMonth = query({
+  args: { 
+    userId: v.string(),
+    month: v.number(), // 1-12
+    year: v.number(),
+  },
+  handler: async (ctx, { userId, month, year }) => {
+    // Get all events created by this seller
+    const events = await ctx.db
+      .query("events")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .collect();
+
+    const eventIds = events.map((e) => e._id);
+
+    // Get all payments for these events
+    const allPayments = await Promise.all(
+      eventIds.map((eventId) =>
+        ctx.db
+          .query("payments")
+          .withIndex("by_event", (q) => q.eq("eventId", eventId))
+          .collect()
+      )
+    );
+
+    const payments = allPayments.flat();
+
+    // Filter payments by month/year
+    const startOfMonth = new Date(year, month - 1, 1).getTime();
+    const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999).getTime();
+    
+    const monthPayments = payments.filter(
+      (p) => p.createdAt >= startOfMonth && p.createdAt <= endOfMonth
+    );
+
+    // Calculate stats
+    const totalRevenue = monthPayments
+      .filter((p) => p.status === "completed")
+      .reduce((sum, p) => sum + p.amount, 0);
+
+    const totalRefunded = monthPayments
+      .filter((p) => p.status === "refunded")
+      .reduce((sum, p) => sum + p.amount, 0);
+
+    const pendingAmount = monthPayments
+      .filter((p) => p.status === "pending")
+      .reduce((sum, p) => sum + p.amount, 0);
+
+    const completedCount = monthPayments.filter((p) => p.status === "completed").length;
+    const refundedCount = monthPayments.filter((p) => p.status === "refunded").length;
+    const pendingCount = monthPayments.filter((p) => p.status === "pending").length;
+    const failedCount = monthPayments.filter((p) => p.status === "failed").length;
+
+    // Get event breakdown
+    const eventBreakdown = await Promise.all(
+      eventIds.map(async (eventId) => {
+        const event = await ctx.db.get(eventId);
+        if (!event) return null;
+
+        const eventPayments = monthPayments.filter((p) => p.eventId === eventId);
+        if (eventPayments.length === 0) return null;
+
+        const revenue = eventPayments
+          .filter((p) => p.status === "completed")
+          .reduce((sum, p) => sum + p.amount, 0);
+
+        return {
+          eventId,
+          eventName: event.name,
+          ticketsSold: eventPayments.filter((p) => p.status === "completed").length,
+          revenue,
+        };
+      })
+    );
+
+    const validBreakdown = eventBreakdown.filter((e) => e !== null);
+
+    return {
+      totalRevenue,
+      totalRefunded,
+      pendingAmount,
+      netRevenue: totalRevenue - totalRefunded,
+      completedCount,
+      refundedCount,
+      pendingCount,
+      failedCount,
+      totalPayments: monthPayments.length,
+      eventBreakdown: validBreakdown,
+    };
+  },
+});

@@ -114,20 +114,25 @@ export default function EventPage() {
               {/* Right Column - Ticket Purchase Card */}
               <div>
                 <div className="sticky top-8 space-y-4">
-                  <EventCard eventId={params.id as Id<"events">} />
-
-                  {user ? (
-                    <JoinQueue
-                      eventId={params.id as Id<"events">}
-                      userId={user.id}
-                    />
-                  ) : (
-                    <SignInButton>
-                      <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg">
-                        Sign in to buy tickets
-                      </Button>
-                    </SignInButton>
-                  )}
+                  {/* Ticket Purchase Section */}
+                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">
+                      Get Your Ticket
+                    </h3>
+                    
+                    {user ? (
+                      <JoinQueue
+                        eventId={params.id as Id<"events">}
+                        userId={user.id}
+                      />
+                    ) : (
+                      <SignInButton>
+                        <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg">
+                          Sign in to buy tickets
+                        </Button>
+                      </SignInButton>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

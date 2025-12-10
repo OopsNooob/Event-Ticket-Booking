@@ -72,48 +72,57 @@ export default function JoinQueue({
 
   const isPastEvent = event.eventDate < Date.now();
 
+  // Check if user has an active offer (not expired)
+  const hasActiveOffer = queuePosition?.status === WAITING_LIST_STATUS.OFFERED && 
+                         queuePosition.offerExpiresAt && 
+                         queuePosition.offerExpiresAt > Date.now();
+
+  // If user has active offer, show purchase form ONLY
+  if (hasActiveOffer) {
+    return <PurchaseTicket eventId={eventId} />;
+  }
+
+  // If user is waiting in queue, show waiting status
+  if (queuePosition?.status === WAITING_LIST_STATUS.WAITING) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+        <p className="text-yellow-800 font-semibold text-center">
+          You're in the waiting list
+        </p>
+        <p className="text-yellow-600 text-sm text-center mt-1">
+          Position: #{queuePosition.position || "N/A"}
+        </p>
+      </div>
+    );
+  }
+
+  // Otherwise show buy ticket button (no queue or expired)
   return (
     <div>
-      {/* Show Purchase component when user has been offered a ticket */}
-      {queuePosition?.status === WAITING_LIST_STATUS.OFFERED && 
-       queuePosition.offerExpiresAt && 
-       queuePosition.offerExpiresAt > Date.now() && (
-        <PurchaseTicket eventId={eventId} />
-      )}
-
-      {/* Show Buy Ticket button when no active queue or queue is expired */}
-      {(!queuePosition ||
-        queuePosition.status === WAITING_LIST_STATUS.EXPIRED ||
-        (queuePosition.status === WAITING_LIST_STATUS.OFFERED &&
-          queuePosition.offerExpiresAt &&
-          queuePosition.offerExpiresAt <= Date.now())) && (
-        <>
-          {isEventOwner ? (
-            <div className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gray-100 text-gray-700 rounded-lg">
-              <OctagonXIcon className="w-5 h-5" />
-              <span>You cannot buy a ticket for your own event</span>
-            </div>
-          ) : isPastEvent ? (
-            <div className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gray-100 text-gray-500 rounded-lg cursor-not-allowed">
-              <Clock className="w-5 h-5" />
-              <span>Event has ended</span>
-            </div>
-          ) : availability.purchasedCount >= availability?.totalTickets ? (
-            <div className="text-center p-4">
-              <p className="text-lg font-semibold text-red-600">
-                Sorry, this event is sold out
-              </p>
-            </div>
-          ) : (
-            <button
-              onClick={handleJoinQueue}
-              disabled={isPastEvent || isEventOwner}
-              className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 shadow-md flex items-center justify-center disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              Buy Ticket
-            </button>
-          )}
-        </>
+      {isEventOwner ? (
+        <div className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gray-100 text-gray-700 rounded-lg">
+          <OctagonXIcon className="w-5 h-5" />
+          <span>You cannot buy a ticket for your own event</span>
+        </div>
+      ) : isPastEvent ? (
+        <div className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-gray-100 text-gray-500 rounded-lg cursor-not-allowed">
+          <Clock className="w-5 h-5" />
+          <span>Event has ended</span>
+        </div>
+      ) : availability.purchasedCount >= availability?.totalTickets ? (
+        <div className="text-center p-4">
+          <p className="text-lg font-semibold text-red-600">
+            Sorry, this event is sold out
+          </p>
+        </div>
+      ) : (
+        <button
+          onClick={handleJoinQueue}
+          disabled={isPastEvent || isEventOwner}
+          className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 shadow-md flex items-center justify-center disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
+          Buy Ticket
+        </button>
       )}
     </div>
   );

@@ -179,6 +179,7 @@ export const deleteConflictTickets = mutation({
   handler: async (ctx) => {
     const users = await ctx.db.query("users").collect();
     const tickets = await ctx.db.query("tickets").collect();
+    const payments = await ctx.db.query("payments").collect();
     
     // Lấy danh sách organizers
     const organizers = users.filter(u => u.role === "organizer");
@@ -189,15 +190,34 @@ export const deleteConflictTickets = mutation({
       organizerUserIds.has(ticket.userId)
     );
     
-    let deleted = 0;
+    // Tìm payments liên quan đến những tickets này
+    const ticketIds = new Set(conflictTickets.map(t => t._id));
+    const relatedPayments = payments.filter(payment => 
+      organizerUserIds.has(payment.userId)
+    );
+    
+    let deletedTickets = 0;
+    let deletedPayments = 0;
     let errors = 0;
     
+    // Xóa tickets
     for (const ticket of conflictTickets) {
       try {
         await ctx.db.delete(ticket._id);
-        deleted++;
+        deletedTickets++;
       } catch (error) {
         console.error(`Error deleting ticket ${ticket._id}:`, error);
+        errors++;
+      }
+    }
+    
+    // Xóa payments
+    for (const payment of relatedPayments) {
+      try {
+        await ctx.db.delete(payment._id);
+        deletedPayments++;
+      } catch (error) {
+        console.error(`Error deleting payment ${payment._id}:`, error);
         errors++;
       }
     }
@@ -205,9 +225,10 @@ export const deleteConflictTickets = mutation({
     return {
       success: true,
       totalConflicts: conflictTickets.length,
-      deleted,
+      deletedTickets,
+      deletedPayments,
       errors,
-      message: `Deleted ${deleted} conflict tickets from organizers, ${errors} errors`,
+      message: `Deleted ${deletedTickets} tickets and ${deletedPayments} payments from organizers, ${errors} errors`,
     };
   },
 });
@@ -458,6 +479,121 @@ export const checkOversoldEvents = query({
     return {
       totalOversoldEvents: oversoldEvents.length,
       events: oversoldEvents,
+    };
+  },
+});
+
+// Query để check orphaned payments (payments mà ticket đã bị xóa)
+export const checkOrphanedPayments = query({
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    const payments = await ctx.db.query("payments").collect();
+    const events = await ctx.db.query("events").collect();
+    
+    // Lấy danh sách organizers
+    const organizers = users.filter(u => u.role === "organizer");
+    const organizerUserIds = new Set(organizers.map(o => o.userId));
+    
+    // Tìm payments của organizers
+    const organizerPayments = payments.filter(payment => 
+      organizerUserIds.has(payment.userId)
+    );
+    
+    // Tìm payments có eventId không tồn tại nữa
+    const eventIds = new Set(events.map(e => e._id));
+    const orphanedEventPayments = payments.filter(payment => 
+      !eventIds.has(payment.eventId)
+    );
+    
+    const organizerPaymentsDetails = organizerPayments.map(payment => {
+      const user = users.find(u => u.userId === payment.userId);
+      const event = events.find(e => e._id === payment.eventId);
+      return {
+        paymentId: payment._id,
+        userId: payment.userId,
+        userEmail: user?.email,
+        userName: user?.name,
+        eventId: payment.eventId,
+        eventName: event?.name || "Unknown Event",
+        amount: payment.amount,
+        status: payment.status,
+        createdAt: payment.createdAt,
+      };
+    });
+    
+    const orphanedEventPaymentsDetails = orphanedEventPayments.map(payment => {
+      const user = users.find(u => u.userId === payment.userId);
+      return {
+        paymentId: payment._id,
+        userId: payment.userId,
+        userEmail: user?.email,
+        userName: user?.name,
+        eventId: payment.eventId,
+        eventName: "Event Deleted",
+        amount: payment.amount,
+        status: payment.status,
+        createdAt: payment.createdAt,
+      };
+    });
+    
+    return {
+      organizerPaymentsCount: organizerPayments.length,
+      organizerPayments: organizerPaymentsDetails,
+      orphanedEventPaymentsCount: orphanedEventPayments.length,
+      orphanedEventPayments: orphanedEventPaymentsDetails,
+      totalToDelete: organizerPayments.length + orphanedEventPayments.length,
+    };
+  },
+});
+
+// Mutation để xóa orphaned payments và payments của organizers
+export const cleanupOrphanedPayments = mutation({
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    const payments = await ctx.db.query("payments").collect();
+    const events = await ctx.db.query("events").collect();
+    
+    // Lấy danh sách organizers
+    const organizers = users.filter(u => u.role === "organizer");
+    const organizerUserIds = new Set(organizers.map(o => o.userId));
+    
+    // Tìm payments của organizers
+    const organizerPayments = payments.filter(payment => 
+      organizerUserIds.has(payment.userId)
+    );
+    
+    // Tìm payments có eventId không tồn tại nữa
+    const eventIds = new Set(events.map(e => e._id));
+    const orphanedEventPayments = payments.filter(payment => 
+      !eventIds.has(payment.eventId)
+    );
+    
+    // Combine và loại bỏ duplicate
+    const paymentsToDelete = new Set([
+      ...organizerPayments.map(p => p._id),
+      ...orphanedEventPayments.map(p => p._id),
+    ]);
+    
+    let deleted = 0;
+    let errors = 0;
+    
+    for (const paymentId of paymentsToDelete) {
+      try {
+        await ctx.db.delete(paymentId);
+        deleted++;
+      } catch (error) {
+        console.error(`Error deleting payment ${paymentId}:`, error);
+        errors++;
+      }
+    }
+    
+    return {
+      success: true,
+      organizerPaymentsFound: organizerPayments.length,
+      orphanedEventPaymentsFound: orphanedEventPayments.length,
+      totalDeleted: deleted,
+      errors,
+      message: `Deleted ${deleted} orphaned/organizer payments, ${errors} errors`,
     };
   },
 });

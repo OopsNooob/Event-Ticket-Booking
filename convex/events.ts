@@ -16,8 +16,8 @@ export type Metrics = {
 const rateLimiter = new RateLimiter(components.rateLimiter, {
   queueJoin: {
     kind: "fixed window",
-    rate: 3, // 3 joins allowed
-    period: 30 * MINUTE, // in 30 minutes
+    rate: 5, // 5 joins allowed (increased for better testing)
+    period: 5 * MINUTE, // in 5 minutes (reduced from 30 for testing)
   },
 });
 

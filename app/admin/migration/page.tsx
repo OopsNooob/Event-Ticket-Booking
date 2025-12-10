@@ -21,12 +21,14 @@ export default function MigrationPage() {
   const ticketsOverview = useQuery(api.migrations.getTicketsOverview);
   const purchasedWaitingList = useQuery(api.migrations.checkPurchasedWaitingListEntries);
   const oversoldEvents = useQuery(api.migrations.checkOversoldEvents);
+  const orphanedPayments = useQuery(api.migrations.checkOrphanedPayments);
   
   const migrateRoles = useMutation(api.migrations.migrateUserRoles);
   const resetRoles = useMutation(api.migrations.resetAllRolesToUser);
   const deleteConflicts = useMutation(api.migrations.deleteConflictTickets);
   const expireWaitingList = useMutation(api.migrations.expirePurchasedWaitingListEntries);
   const deleteWaitingList = useMutation(api.migrations.deletePurchasedWaitingListEntries);
+  const cleanupPayments = useMutation(api.migrations.cleanupOrphanedPayments);
 
   // Check admin access
   if (isLoaded && !user) {
@@ -174,7 +176,29 @@ export default function MigrationPage() {
     }
   };
 
-  if (!status || !usersWithEvents || !conflictTickets || !ticketsOverview || !purchasedWaitingList || !oversoldEvents) {
+  const handleCleanupPayments = async () => {
+    if (!orphanedPayments || orphanedPayments.totalToDelete === 0) {
+      toast.error("No orphaned payments to delete");
+      return;
+    }
+
+    if (!confirm(`Bạn có chắc muốn XÓA ${orphanedPayments.totalToDelete} payments (${orphanedPayments.organizerPaymentsCount} payments của organizers + ${orphanedPayments.orphanedEventPaymentsCount} payments của events đã xóa)? Hành động này KHÔNG THỂ HOÀN TÁC!`)) {
+      return;
+    }
+    
+    setIsRunning(true);
+    try {
+      const result = await cleanupPayments();
+      toast.success(result.message);
+    } catch (error) {
+      toast.error("Cleanup failed: " + error);
+      console.error(error);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  if (!status || !usersWithEvents || !conflictTickets || !ticketsOverview || !purchasedWaitingList || !oversoldEvents || !orphanedPayments) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -294,6 +318,192 @@ export default function MigrationPage() {
             </div>
           </div>
         </div>
+
+        {/* Orphaned Payments Cleanup */}
+        {orphanedPayments.totalToDelete > 0 && (
+          <div className="bg-white rounded-xl shadow-md p-8 mb-8 border-2 border-purple-500">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertCircle className="w-8 h-8 text-purple-600" />
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Orphaned Payments ({orphanedPayments.totalToDelete})
+                </h2>
+                <p className="text-gray-600">
+                  Payments không còn hợp lệ cần được xóa
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <p className="text-sm text-purple-800 mb-2">
+                <strong>Tìm thấy 2 loại payments cần xóa:</strong>
+              </p>
+              <ul className="list-disc list-inside text-sm text-purple-800 space-y-1">
+                <li><strong>{orphanedPayments.organizerPaymentsCount} payments của organizers</strong> - Organizers không được phép mua vé</li>
+                <li><strong>{orphanedPayments.orphanedEventPaymentsCount} payments của events đã xóa</strong> - Các events này không còn tồn tại</li>
+              </ul>
+            </div>
+
+            <button
+              onClick={handleCleanupPayments}
+              disabled={isRunning}
+              className={`px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
+                isRunning
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  : "bg-purple-600 text-white hover:bg-purple-700"
+              }`}
+            >
+              <Trash2 className="w-5 h-5" />
+              Clean Up {orphanedPayments.totalToDelete} Orphaned Payments
+            </button>
+
+            {/* Organizer Payments Table */}
+            {orphanedPayments.organizerPayments.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                  Organizer Payments ({orphanedPayments.organizerPaymentsCount})
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          User
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Event
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Amount
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Status
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Date
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {orphanedPayments.organizerPayments.slice(0, 5).map((payment: any) => (
+                        <tr key={payment.paymentId}>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="font-medium text-gray-900">{payment.userEmail}</div>
+                            <div className="text-gray-500 text-xs">{payment.userName}</div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{payment.eventName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">${payment.amount.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              payment.status === "completed" 
+                                ? "bg-green-100 text-green-800"
+                                : payment.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : payment.status === "refunded"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}>
+                              {payment.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {new Date(payment.createdAt).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {orphanedPayments.organizerPaymentsCount > 5 && (
+                    <p className="text-sm text-gray-500 mt-2 text-center">
+                      Showing 5 of {orphanedPayments.organizerPaymentsCount} organizer payments
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Orphaned Event Payments Table */}
+            {orphanedPayments.orphanedEventPayments.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                  Payments for Deleted Events ({orphanedPayments.orphanedEventPaymentsCount})
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          User
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Event Status
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Amount
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Payment Status
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Date
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {orphanedPayments.orphanedEventPayments.slice(0, 5).map((payment: any) => (
+                        <tr key={payment.paymentId}>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="font-medium text-gray-900">{payment.userEmail}</div>
+                            <div className="text-gray-500 text-xs">{payment.userName}</div>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className="text-red-600 font-semibold">Event Deleted</span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">${payment.amount.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              payment.status === "completed" 
+                                ? "bg-green-100 text-green-800"
+                                : payment.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : payment.status === "refunded"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}>
+                              {payment.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {new Date(payment.createdAt).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {orphanedPayments.orphanedEventPaymentsCount > 5 && (
+                    <p className="text-sm text-gray-500 mt-2 text-center">
+                      Showing 5 of {orphanedPayments.orphanedEventPaymentsCount} orphaned event payments
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {orphanedPayments.totalToDelete === 0 && (
+          <div className="bg-white rounded-xl shadow-md p-8 mb-8 border-2 border-green-500">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">No Orphaned Payments</h2>
+                <p className="text-gray-600">
+                  Tất cả payments đều hợp lệ! ✓
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tickets Overview */}
         <div className="bg-white rounded-xl shadow-md p-8 mb-8">
