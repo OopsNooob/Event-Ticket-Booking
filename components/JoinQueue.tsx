@@ -62,8 +62,7 @@ export default function JoinQueue({
       isEventOwner ||
       isPastEvent ||
       isWaiting ||
-      hasActiveOffer ||
-      hasTicket
+      hasActiveOffer
     ) {
       // Optionally show a toast for why the action is blocked
       if (userRole === "organizer") {
@@ -124,14 +123,6 @@ export default function JoinQueue({
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
         <p className="text-yellow-800 font-semibold">You're in the waiting list</p>
         <p className="text-yellow-600 text-sm mt-1">Position: #{queuePosition?.position ?? "N/A"}</p>
-      </div>
-    );
-  }
-
-  if (hasTicket) {
-    return (
-      <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-        <p className="text-green-700 font-semibold">You already own a ticket for this event</p>
       </div>
     );
   }
