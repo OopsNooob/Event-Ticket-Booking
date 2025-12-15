@@ -180,7 +180,7 @@ export default function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
               className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
             />
             <p className="text-sm text-gray-500 mt-1">
-              Price per ticket: ${event?.price || 0} • Total: ${(event?.price || 0) * quantity}
+              Price per ticket: ${event?.price?.toFixed(2) || "0.00"} • Total: ${((event?.price || 0) * quantity).toFixed(2)}
             </p>
             <p className="text-sm text-blue-600 mt-1 font-semibold">
               {availableSpots} ticket{availableSpots !== 1 ? "s" : ""} available (You can buy up to{" "}
