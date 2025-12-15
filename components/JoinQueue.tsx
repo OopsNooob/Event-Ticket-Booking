@@ -109,7 +109,7 @@ export default function JoinQueue({
     return (
       <div className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-red-50 text-red-700 rounded-lg">
         <OctagonXIcon className="w-5 h-5" />
-        <span>Organizers are not allowed to join the waiting list</span>
+        <span>Organizers are not allowed to buy ticket</span>
       </div>
     );
   }
