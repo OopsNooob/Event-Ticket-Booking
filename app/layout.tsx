@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import "leaflet/dist/leaflet.css"; // Add this line
-import { ClerkProvider } from "@clerk/nextjs";
-import { ConvexClientProvider } from "@/components/ConvexClientProvider";
-import Header from "@/components/Header";
-import { Toaster } from "@/components/ui/toaster";
-import SyncUserWithConvex from "@/components/SyncUserWithConvex";
+import "leaflet/dist/leaflet.css";
+import RootLayoutClient from "@/components/RootLayoutClient";
+
+// Mark layout as dynamic to prevent prerendering issues with Convex
+export const dynamic = "force-dynamic";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -34,15 +33,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ConvexClientProvider>
-          <ClerkProvider>
-            <Header />
-            <SyncUserWithConvex />
-            {children}
-
-            <Toaster />
-          </ClerkProvider>
-        </ConvexClientProvider>
+        <RootLayoutClient>{children}</RootLayoutClient>
       </body>
     </html>
   );

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { createStripeConnectAccountLink } from "@/app/actions/createStripeConnectAccountLink";
+// import { createStripeConnectAccountLink } from "@/app/actions/createStripeConnectAccountLink";
+// STRIPE REMOVED - No longer using Stripe
 import { Loader2, AlertCircle } from "lucide-react";
 
 export default function Refresh() {
@@ -18,9 +19,8 @@ export default function Refresh() {
         setAccountLinkCreatePending(true);
         setError(false);
         try {
-          const { url } =
-            await createStripeConnectAccountLink(connectedAccountId);
-          window.location.href = url;
+          // Stripe removed - replace with your new payment processor logic
+          throw new Error("Stripe integration removed. Please implement new payment processor.");
         } catch (error) {
           console.error("Error creating account link:", error);
           setError(true);

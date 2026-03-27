@@ -22,7 +22,6 @@ export default function JoinQueue({
   const joinWaitingList = useMutation(api.events.joinWaitingList);
 
   const queuePosition = useQuery(api.waitingList.getQueuePosition, { eventId, userId });
-  const userTicket = useQuery(api.tickets.getUserTicketForEvent, { eventId, userId });
   const availability = useQuery(api.events.getEventAvailability, { eventId });
   const event = useQuery(api.events.getById, { eventId });
 
@@ -43,8 +42,6 @@ export default function JoinQueue({
   // After the guard, `event` is narrowed to non-null
   const isEventOwner = userId === event.userId;
   const isPastEvent = event.eventDate < Date.now();
-
-  const hasTicket = !!userTicket;
 
   const hasActiveOffer =
     queuePosition?.status === WAITING_LIST_STATUS.OFFERED &&

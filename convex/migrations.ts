@@ -191,7 +191,7 @@ export const deleteConflictTickets = mutation({
     );
     
     // Tìm payments liên quan đến những tickets này
-    const ticketIds = new Set(conflictTickets.map(t => t._id));
+    // const ticketIds = new Set(conflictTickets.map(t => t._id));
     const relatedPayments = payments.filter(payment => 
       organizerUserIds.has(payment.userId)
     );

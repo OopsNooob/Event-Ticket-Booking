@@ -27,7 +27,6 @@ export default function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
   });
 
   const releaseTicket = useMutation(api.waitingList.releaseTicket);
-  const joinWaitingList = useMutation(api.events.joinWaitingList);
 
   // Handle role mismatch using useEffect
   useEffect(() => {
@@ -83,20 +82,6 @@ export default function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
       });
     } catch (error) {
       console.error("Release error:", error);
-    }
-  };
-
-  const handleJoinQueue = async () => {
-    if (!user) {
-      router.push("/sign-in");
-      return;
-    }
-
-    try {
-      await joinWaitingList({ eventId, userId: user.id });
-    } catch (error) {
-      console.error("Join queue error:", error);
-      alert(error instanceof Error ? error.message : "Failed to join queue");
     }
   };
 

@@ -3,6 +3,9 @@
 import EventForm from "@/components/EventForm";
 import RoleGuard from "@/components/RoleGuard";
 
+// Prevent static prerendering for this page
+export const dynamic = "force-dynamic";
+
 export default function NewEventPage() {
   return (
     <RoleGuard allowedRole="organizer">

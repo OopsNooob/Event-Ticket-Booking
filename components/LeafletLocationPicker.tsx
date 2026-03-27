@@ -160,13 +160,6 @@ export default function LeafletLocationPicker({
     }
   };
 
-  const handleConfirm = () => {
-    if (searchQuery) {
-      onChange(searchQuery);
-      setIsOpen(false);
-    }
-  };
-
   const handleSaveLocation = () => {
     if (searchQuery && hasSelectedLocation) {
       onChange(searchQuery);
