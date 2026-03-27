@@ -17,14 +17,14 @@ interface TicketCardProps {
 export default function TicketCard({ ticket }: TicketCardProps) {
   const [isSaving, setIsSaving] = useState(false);
 
+  const ticketQuery = useQuery(api.tickets.getTicketWithDetails, {
+    ticketId: ticket?._id ?? "",
+  });
+
   // Early return if ticket is undefined
   if (!ticket) {
     return <Spinner />;
   }
-
-  const ticketQuery = useQuery(api.tickets.getTicketWithDetails, {
-    ticketId: ticket._id,
-  });
 
   // Early return with proper null checks
   if (!ticketQuery) return <Spinner />;

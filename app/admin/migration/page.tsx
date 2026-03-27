@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, AlertCircle, Users, RefreshCw, Ticket, Trash2, Shield, AlertTriangle, UserX } from "lucide-react";
+import { CheckCircle, AlertCircle, Users, RefreshCw, Trash2, Shield, AlertTriangle, UserX } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 

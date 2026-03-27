@@ -1,6 +1,5 @@
 "use client";
 
-import EventCard from "@/components/EventCard";
 import { Id } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";

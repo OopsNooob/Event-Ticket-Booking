@@ -1,10 +1,20 @@
-import { headers } from "next/headers";
-import { stripe } from "@/lib/stripe";
-import { getConvexClient } from "@/lib/convex";
-import { api } from "@/convex/_generated/api";
-import Stripe from "stripe";
-import { StripeCheckoutMetaData } from "@/app/actions/createStripeCheckoutSession";
+// STRIPE REMOVED - This webhook is no longer needed
+// import { headers } from "next/headers";
+// import { stripe } from "@/lib/stripe";
+// import { getConvexClient } from "@/lib/convex";
+// import { api } from "@/convex/_generated/api";
+// import Stripe from "stripe";
+// import { StripeCheckoutMetaData } from "@/app/actions/createStripeCheckoutSession";
 
+export async function POST() {
+  return new Response(
+    JSON.stringify({ error: "Stripe integration has been removed" }),
+    { status: 410 }
+  );
+}
+
+/*
+ORIGINAL CODE - COMMENTED OUT
 export async function POST(req: Request) {
   console.log("Webhook received");
 
@@ -59,3 +69,4 @@ export async function POST(req: Request) {
 
   return new Response(null, { status: 200 });
 }
+*/
