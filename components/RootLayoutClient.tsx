@@ -5,7 +5,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "@/components/ui/toaster";
 import SyncUserWithConvex from "@/components/SyncUserWithConvex";
 import Header from "@/components/Header";
-import { ReactNode } from "react";
+import { ReactNode, Suspense } from "react";
 
 export default function RootLayoutClient({
   children,
@@ -15,8 +15,12 @@ export default function RootLayoutClient({
   return (
     <ConvexClientProvider>
       <ClerkProvider>
-        <Header />
-        <SyncUserWithConvex />
+        <Suspense fallback={null}>
+          <Header />
+        </Suspense>
+        <Suspense fallback={null}>
+          <SyncUserWithConvex />
+        </Suspense>
         {children}
         <Toaster />
       </ClerkProvider>

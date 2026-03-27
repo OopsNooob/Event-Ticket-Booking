@@ -4,6 +4,9 @@ import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import RootLayoutClient from "@/components/RootLayoutClient";
 
+// Mark layout as dynamic to prevent prerendering issues with Convex
+export const dynamic = "force-dynamic";
+
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
   variable: "--font-geist-sans",

@@ -7,6 +7,9 @@ import { Id } from "@/convex/_generated/dataModel";
 import { CheckCircle } from "lucide-react";
 import { useEffect } from "react";
 
+// Prevent static prerendering for this page
+export const dynamic = "force-dynamic";
+
 export default function PurchaseSuccessPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
