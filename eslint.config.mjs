@@ -1,5 +1,6 @@
 import typescriptEslintParser from "@typescript-eslint/parser";
 import typescriptEslintPlugin from "@typescript-eslint/eslint-plugin";
+import nextEslintPlugin from "@next/eslint-plugin-next";
 
 /** @type {import("eslint").Linter.Config[]} */
 export default [
@@ -20,9 +21,11 @@ export default [
     },
     plugins: {
       "@typescript-eslint": typescriptEslintPlugin,
+      "@next/next": nextEslintPlugin,
     },
     rules: {
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      ...nextEslintPlugin.configs.recommended.rules,
     },
   },
 ];
