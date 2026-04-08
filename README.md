@@ -200,6 +200,117 @@ Note: Keep the Convex development server running while working on your project. 
    npx shadcn-ui@latest add toaster
    ```
 
+## CI/CD Pipeline
+
+### GitHub Actions Workflow
+
+This project includes automated CI/CD pipeline configured in `.github/workflows/ci.yml`. The workflow automatically runs on every push to `main`/`develop` branches and on pull requests.
+
+#### Workflow Features
+
+- **Automated Testing**: Runs ESLint for code quality checks
+- **Build Verification**: Compiles Next.js application to catch build errors
+- **Node.js 20.x**: Uses the latest LTS version for optimal compatibility
+- **Dependency Management**: Automatically installs dependencies with legacy peer deps support
+- **Parallel Steps**: Efficient build process
+
+#### Workflow Steps
+
+1. **Checkout**: Clones the latest code
+2. **Setup Node.js**: Configures Node.js 20.x environment
+3. **Install Dependencies**: Runs `npm ci` with `--legacy-peer-deps`
+4. **Lint Code**: Executes `npm run lint` to check code quality
+5. **Build Application**: Runs `npm run build` to verify production build
+
+#### ESLint Configuration
+
+The project uses ESLint 10.x with flat config format (`eslint.config.mjs`):
+
+- **TypeScript Parser**: @typescript-eslint/parser
+- **Next.js Plugin**: @next/eslint-plugin-next
+- **Ignored Paths**: .next/**, node_modules/**, convex/_generated/**
+
+Run locally:
+```bash
+npm run lint
+```
+
+### Deployment
+
+#### Option 1: Vercel (Recommended)
+
+Vercel provides seamless Next.js deployment with automatic deployments on every push:
+
+1. **Connect Repository**: Visit [Vercel Dashboard](https://vercel.com)
+2. **Import Project**: Select `OopsNooob/Event-Ticket-Booking` repository
+3. **Configure Branch**: Select `khang-fullstrack` branch
+4. **Add Environment Variables**:
+   ```
+   NEXT_PUBLIC_CONVEX_URL
+   CLERK_SECRET_KEY
+   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+   GMAIL_USER
+   GMAIL_PASSWORD
+   ```
+5. **Deploy**: Click "Deploy" button - Vercel automatically builds and deploys
+
+**Benefits:**
+- Automatic deployments on every push
+- Preview deployments for pull requests
+- Edge functions and serverless functions
+- Automatic HTTPS and CDN
+- Performance analytics
+
+#### Option 2: Railway / Render
+
+Alternative platforms for deployment:
+
+**Railway:**
+```bash
+# Login to Railway
+railway login
+# Deploy
+railway up
+```
+
+**Render:**
+1. Connect GitHub repository to Render
+2. Configure build command: `npm run build`
+3. Configure start command: `npm start`
+4. Add environment variables
+5. Deploy
+
+### Production Build
+
+Before deploying to production:
+
+```bash
+# Test production build locally
+npm run build
+
+# Start production server
+npm start
+```
+
+Verify:
+- ✅ Build completes without errors
+- ✅ Linting passes (`npm run lint`)
+- ✅ Environment variables are configured
+- ✅ Convex deployment is active
+- ✅ Clerk production keys are set
+
+### Monitoring & Logs
+
+**Vercel Deployments:**
+- View logs: Dashboard → Deployments → View logs
+- Monitor errors: Analytics → Function logs
+- Track performance: Analytics → Core Web Vitals
+
+**GitHub Actions:**
+- View workflow runs: GitHub → Actions tab
+- Check logs for each job step
+- Review lint and build output
+
 ## Architecture
 
 ### Database Schema (Updated)
