@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [ main, develop, khang-fullstrack ]
   pull_request:
     branches: [ main, develop, khang-fullstrack ]
 
