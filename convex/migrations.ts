@@ -214,7 +214,7 @@ export const deleteConflictTickets = mutation({
     // SOFT DELETE: Mark payments as deleted instead of hard delete
     for (const payment of relatedPayments) {
       try {
-        await ctx.db.patch(payment._id, { isDeleted: true });
+        await ctx.db.patch(payment._id, { isDeleted: true } as any);
         deletedPayments++;
       } catch (error) {
         console.error(`Error deleting payment ${payment._id}:`, error);

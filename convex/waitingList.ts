@@ -117,7 +117,7 @@ async function processQueueHandler(ctx: any, eventId: Id<"events">) {
     .collect()
     .then(
       (entries: Doc<"waitingList">[]) =>
-        entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        entries.filter((e) => (e.offerExpiresAt ?? 0) > now && !e.isDeleted).length
     );
 
   const availableSpots = eventData.totalTickets - (purchasedCount + activeOffers);

@@ -102,7 +102,7 @@ export const checkAvailability = query({
       )
       .collect()
       .then(
-        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now && !e.isDeleted).length
       );
 
     const availableSpots = event.totalTickets - (purchasedCount + activeOffers);
@@ -141,9 +141,12 @@ export const joinWaitingList = mutation({
         q.eq("userId", userId).eq("eventId", eventId)
       )
       .filter((q) => 
-        q.or(
-          q.eq(q.field("status"), WAITING_LIST_STATUS.WAITING),
-          q.eq(q.field("status"), WAITING_LIST_STATUS.OFFERED)
+        q.and(
+          q.or(
+            q.eq(q.field("status"), WAITING_LIST_STATUS.WAITING),
+            q.eq(q.field("status"), WAITING_LIST_STATUS.OFFERED)
+          ),
+          q.eq(q.field("isDeleted"), undefined) // Filter out soft-deleted entries
         )
       )
       .first();
@@ -179,7 +182,7 @@ export const joinWaitingList = mutation({
       )
       .collect()
       .then(
-        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now && !e.isDeleted).length
       );
 
     const availableSpots = event.totalTickets - (purchasedCount + activeOffers);
@@ -301,7 +304,7 @@ export const purchaseTicket = mutation({
       )
       .collect()
       .then(
-        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now && !e.isDeleted).length
       );
 
     const availableSpots = event.totalTickets - purchasedCount - activeOffers;
@@ -455,7 +458,7 @@ export const getEventAvailability = query({
       )
       .collect()
       .then(
-        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now && !e.isDeleted).length
       );
 
     const totalReserved = purchasedCount + activeOffers;
