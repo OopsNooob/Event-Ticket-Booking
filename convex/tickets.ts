@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 
 export const getUserTicketForEvent = query({
   args: {
@@ -66,6 +67,50 @@ export const getValidTicketsForEvent = query({
         )
       )
       .collect();
+  },
+});
+
+/**
+ * Paginated User Tickets Query
+ * 
+ * Performance: Pagination for Large Datasets (SAD 12.4)
+ * Returns user's tickets in pages instead of loading all at once.
+ * 
+ * Usage: For users with hundreds of tickets
+ */
+export const getUserTicketsPaginated = query({
+  args: {
+    userId: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, { userId, paginationOpts }) => {
+    return await ctx.db
+      .query("tickets")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .filter((q) => q.eq(q.field("isDeleted"), undefined))
+      .order("desc")
+      .paginate(paginationOpts);
+  },
+});
+
+/**
+ * Paginated Event Tickets Query
+ * 
+ * Performance: Pagination for Large Datasets (SAD 12.4)
+ * Returns event's tickets in pages. Critical for events with 100K+ tickets.
+ */
+export const getEventTicketsPaginated = query({
+  args: {
+    eventId: v.id("events"),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, { eventId, paginationOpts }) => {
+    return await ctx.db
+      .query("tickets")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .filter((q) => q.eq(q.field("isDeleted"), undefined))
+      .order("desc")
+      .paginate(paginationOpts);
   },
 });
 

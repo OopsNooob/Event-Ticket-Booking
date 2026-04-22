@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { paginationOptsValidator } from "convex/server";
 // import { Id } from "./_generated/dataModel";
 
 /**
@@ -142,6 +143,26 @@ export const getUserPayments = query({
 });
 
 /**
+ * Paginated User Payments Query
+ * 
+ * Performance: Pagination for Large Datasets (SAD 12.4)
+ * Returns user's payments in pages. Critical for users with 1000+ transactions.
+ */
+export const getUserPaymentsPaginated = query({
+  args: {
+    userId: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, { userId, paginationOpts }) => {
+    return await ctx.db
+      .query("payments")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .order("desc")
+      .paginate(paginationOpts);
+  },
+});
+
+/**
  * Get all payments for an event (for sellers)
  */
 export const getEventPayments = query({
@@ -152,6 +173,26 @@ export const getEventPayments = query({
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .order("desc")
       .collect();
+  },
+});
+
+/**
+ * Paginated Event Payments Query
+ * 
+ * Performance: Pagination for Large Datasets (SAD 12.4)
+ * Returns event's payments in pages. Critical for popular events with 10K+ orders.
+ */
+export const getEventPaymentsPaginated = query({
+  args: {
+    eventId: v.id("events"),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, { eventId, paginationOpts }) => {
+    return await ctx.db
+      .query("payments")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .order("desc")
+      .paginate(paginationOpts);
   },
 });
 
