@@ -12,6 +12,7 @@ export default defineSchema({
     userId: v.string(),
     imageStorageId: v.optional(v.id("_storage")),
     is_cancelled: v.optional(v.boolean()),
+    isDeleted: v.optional(v.boolean()),
   }).index("by_user_id", ["userId"]),
 
   tickets: defineTable({
@@ -21,6 +22,7 @@ export default defineSchema({
     status: v.string(),
     paymentId: v.id("payments"),
     amount: v.number(),
+    isDeleted: v.optional(v.boolean()),
   })
     .index("by_user_id", ["userId"])
     .index("by_event", ["eventId"])
@@ -31,6 +33,7 @@ export default defineSchema({
     userId: v.string(),
     status: v.string(),
     offerExpiresAt: v.optional(v.number()),
+    isDeleted: v.optional(v.boolean()),
   })
     .index("by_user_event", ["userId", "eventId"])
     .index("by_event_status", ["eventId", "status"]),
@@ -40,6 +43,7 @@ export default defineSchema({
     email: v.string(),
     name: v.optional(v.string()),
     role: v.optional(v.union(v.literal("user"), v.literal("organizer"))), // Optional để support existing users
+    isDeleted: v.optional(v.boolean()),
   })
     .index("by_user_id", ["userId"])
     .index("by_email", ["email"]),
@@ -54,6 +58,7 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
     refundedAt: v.optional(v.number()),
     failureReason: v.optional(v.string()),
+    isDeleted: v.optional(v.boolean()),
   })
     .index("by_user", ["userId"])
     .index("by_event", ["eventId"])

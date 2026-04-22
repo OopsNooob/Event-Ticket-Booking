@@ -200,10 +200,10 @@ export const deleteConflictTickets = mutation({
     let deletedPayments = 0;
     let errors = 0;
     
-    // Xóa tickets
+    // SOFT DELETE: Mark tickets as deleted instead of hard delete
     for (const ticket of conflictTickets) {
       try {
-        await ctx.db.delete(ticket._id);
+        await ctx.db.patch(ticket._id, { isDeleted: true });
         deletedTickets++;
       } catch (error) {
         console.error(`Error deleting ticket ${ticket._id}:`, error);
@@ -211,10 +211,10 @@ export const deleteConflictTickets = mutation({
       }
     }
     
-    // Xóa payments
+    // SOFT DELETE: Mark payments as deleted instead of hard delete
     for (const payment of relatedPayments) {
       try {
-        await ctx.db.delete(payment._id);
+        await ctx.db.patch(payment._id, { isDeleted: true });
         deletedPayments++;
       } catch (error) {
         console.error(`Error deleting payment ${payment._id}:`, error);
@@ -353,7 +353,8 @@ export const deletePurchasedWaitingListEntries = mutation({
     
     for (const entry of purchasedEntries) {
       try {
-        await ctx.db.delete(entry._id);
+        // SOFT DELETE: Mark as deleted instead of hard delete
+        await ctx.db.patch(entry._id, { isDeleted: true });
         deleted++;
       } catch (error) {
         console.error(`Error deleting waiting list entry ${entry._id}:`, error);
@@ -579,7 +580,8 @@ export const cleanupOrphanedPayments = mutation({
     
     for (const paymentId of paymentsToDelete) {
       try {
-        await ctx.db.delete(paymentId);
+        // SOFT DELETE: Mark as deleted instead of hard delete
+        await ctx.db.patch(paymentId, { isDeleted: true });
         deleted++;
       } catch (error) {
         console.error(`Error deleting payment ${paymentId}:`, error);
