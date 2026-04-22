@@ -16,6 +16,7 @@ import type * as payments from "../payments.js";
 import type * as storage from "../storage.js";
 import type * as tickets from "../tickets.js";
 import type * as users from "../users.js";
+import type * as validation from "../validation.js";
 import type * as waitingList from "../waitingList.js";
 
 import type {
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   storage: typeof storage;
   tickets: typeof tickets;
   users: typeof users;
+  validation: typeof validation;
   waitingList: typeof waitingList;
 }>;
 
