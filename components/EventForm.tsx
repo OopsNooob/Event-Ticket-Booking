@@ -11,7 +11,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { z } from "zod";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useUser } from "@clerk/nextjs";
@@ -25,22 +24,10 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useStorageUrl } from "@/lib/utils";
 import LeafletLocationPicker from "./LeafletLocationPicker";
+import { EventSchema, type EventFormData } from "@/lib/validations/eventSchema";
 
-const formSchema = z.object({
-  name: z.string().min(1, "Event name is required"),
-  description: z.string().min(1, "Description is required"),
-  location: z.string().min(1, "Location is required"),
-  eventDate: z
-    .date()
-    .min(
-      new Date(new Date().setHours(0, 0, 0, 0)),
-      "Event date must be in the future"
-    ),
-  price: z.number().min(0, "Price must be 0 or greater"),
-  totalTickets: z.number().min(1, "Must have at least 1 ticket"),
-});
-
-type FormData = z.infer<typeof formSchema>;
+// Use independent validation schema from lib/validations
+type FormData = EventFormData;
 
 interface InitialEventData {
   _id: Id<"events">;
@@ -78,7 +65,7 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
   const [removedCurrentImage, setRemovedCurrentImage] = useState(false);
 
   const form = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(EventSchema),
     defaultValues: {
       name: initialData?.name ?? "",
       description: initialData?.description ?? "",

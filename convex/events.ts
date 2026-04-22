@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { DURATIONS, WAITING_LIST_STATUS, TICKET_STATUS } from "./constants";
 import { components, internal } from "./_generated/api";
 import { MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
+import { paginationOptsValidator } from "convex/server";
 
 export type Metrics = {
   soldTickets: number;
@@ -45,6 +46,35 @@ export const getById = query({
       return null;
     }
     return event;
+  },
+});
+
+/**
+ * Paginated Events Query
+ * 
+ * Performance: Pagination for Large Datasets (SAD 12.4)
+ * Returns events in manageable chunks instead of loading all at once.
+ * 
+ * Usage:
+ * ```typescript
+ * const { results, status } = useQuery(api.events.getPaginated, {
+ *   paginationOpts: { cursor: null, numItems: 25 },
+ * });
+ * ```
+ */
+export const getPaginated = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    return await ctx.db
+      .query("events")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("is_cancelled"), undefined),
+          q.eq(q.field("isDeleted"), undefined)
+        )
+      )
+      .order("desc")
+      .paginate(paginationOpts);
   },
 });
 

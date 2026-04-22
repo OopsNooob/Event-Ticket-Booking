@@ -6,7 +6,15 @@ import { useQuery } from "convex/react";
 import { CalendarDays, DollarSign, Plus, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import Spinner from "./Spinner";
+import ExportButton from "./ExportButton";
 import { useState } from "react";
+import {
+  exportRevenueToCSV,
+  exportToJSON,
+  generateExportTimestamp,
+  formatDateForExport,
+  type RevenueReportRow,
+} from "@/lib/exports/exportUtils";
 
 export default function SellerDashboard() {
   const { user } = useUser();
@@ -27,6 +35,62 @@ export default function SellerDashboard() {
     api.payments.getSellerStatsByMonth,
     user ? { userId: user.id, month: selectedMonth, year: selectedYear } : "skip"
   );
+
+  /**
+   * Handle export of revenue data
+   */
+  const handleExportRevenue = async (format: "csv" | "json") => {
+    if (!monthlyStats || !stats) return;
+
+    if (format === "csv") {
+      // Prepare revenue report data
+      const revenueData: RevenueReportRow[] = monthlyStats.eventBreakdown.map(
+        (event) => ({
+          eventId: event.eventId,
+          eventName: event.eventName,
+          eventDate: formatDateForExport(new Date()),
+          location: "N/A",
+          ticketsSold: event.ticketsSold,
+          price: monthlyStats.totalRevenue / Math.max(monthlyStats.completedCount, 1),
+          totalRevenue: event.revenue,
+          refundedAmount: 0,
+          netRevenue: event.revenue,
+          status: "completed" as const,
+          exportedAt: generateExportTimestamp(),
+        })
+      );
+
+      exportRevenueToCSV(
+        revenueData,
+        `revenue_${selectedYear}_${String(selectedMonth).padStart(2, "0")}.csv`
+      );
+    } else {
+      // Export as JSON
+      const jsonData = {
+        exportDate: generateExportTimestamp(),
+        month: selectedMonth,
+        year: selectedYear,
+        summary: {
+          totalRevenue: stats.totalRevenue,
+          netRevenue: stats.netRevenue,
+          totalRefunded: stats.totalRefunded,
+          pendingAmount: stats.pendingAmount,
+        },
+        monthlyData: {
+          revenue: monthlyStats.totalRevenue,
+          netRevenue: monthlyStats.netRevenue,
+          completedPayments: monthlyStats.completedCount,
+          refundedPayments: monthlyStats.refundedCount,
+          events: monthlyStats.eventBreakdown,
+        },
+      };
+
+      exportToJSON(
+        jsonData,
+        `revenue_${selectedYear}_${String(selectedMonth).padStart(2, "0")}.json`
+      );
+    }
+  };
 
   if (!user) {
     return (
@@ -173,6 +237,11 @@ export default function SellerDashboard() {
                 <CalendarDays className="w-5 h-5" />
                 View My Events
               </Link>
+              <ExportButton
+                label="Export Revenue"
+                showFormatMenu={true}
+                onExport={(format) => handleExportRevenue(format)}
+              />
             </div>
           </div>
         </div>
