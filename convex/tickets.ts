@@ -12,6 +12,7 @@ export const getUserTicketForEvent = query({
       .withIndex("by_user_event", (q) =>
         q.eq("userId", userId).eq("eventId", eventId)
       )
+      .filter((q) => q.eq(q.field("isDeleted"), undefined)) // Filter out soft-deleted
       .first();
 
     return ticket;
@@ -30,6 +31,7 @@ export const getUserTicketCountForEvent = query({
       .withIndex("by_user_event", (q) =>
         q.eq("userId", userId).eq("eventId", eventId)
       )
+      .filter((q) => q.eq(q.field("isDeleted"), undefined)) // Filter out soft-deleted
       .collect();
 
     return tickets.length;
@@ -40,7 +42,7 @@ export const getTicketWithDetails = query({
   args: { ticketId: v.id("tickets") },
   handler: async (ctx, { ticketId }) => {
     const ticket = await ctx.db.get(ticketId);
-    if (!ticket) return null;
+    if (!ticket || ticket.isDeleted) return null; // Filter out soft-deleted
 
     const event = await ctx.db.get(ticket.eventId);
 
@@ -58,7 +60,10 @@ export const getValidTicketsForEvent = query({
       .query("tickets")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .filter((q) =>
-        q.or(q.eq(q.field("status"), "valid"), q.eq(q.field("status"), "used"))
+        q.and(
+          q.or(q.eq(q.field("status"), "valid"), q.eq(q.field("status"), "used")),
+          q.eq(q.field("isDeleted"), undefined) // Filter out soft-deleted
+        )
       )
       .collect();
   },

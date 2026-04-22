@@ -26,7 +26,12 @@ export const get = query({
   handler: async (ctx) => {
     return await ctx.db
       .query("events")
-      .filter((q) => q.eq(q.field("is_cancelled"), undefined))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("is_cancelled"), undefined),
+          q.eq(q.field("isDeleted"), undefined) // Filter out soft-deleted events
+        )
+      )
       .collect();
   },
 });
@@ -34,7 +39,12 @@ export const get = query({
 export const getById = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    return await ctx.db.get(eventId);
+    const event = await ctx.db.get(eventId);
+    // Filter out soft-deleted events
+    if (event && event.isDeleted) {
+      return null;
+    }
+    return event;
   },
 });
 
@@ -92,7 +102,7 @@ export const checkAvailability = query({
       )
       .collect()
       .then(
-        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now && !e.isDeleted).length
       );
 
     const availableSpots = event.totalTickets - (purchasedCount + activeOffers);
@@ -131,9 +141,12 @@ export const joinWaitingList = mutation({
         q.eq("userId", userId).eq("eventId", eventId)
       )
       .filter((q) => 
-        q.or(
-          q.eq(q.field("status"), WAITING_LIST_STATUS.WAITING),
-          q.eq(q.field("status"), WAITING_LIST_STATUS.OFFERED)
+        q.and(
+          q.or(
+            q.eq(q.field("status"), WAITING_LIST_STATUS.WAITING),
+            q.eq(q.field("status"), WAITING_LIST_STATUS.OFFERED)
+          ),
+          q.eq(q.field("isDeleted"), undefined) // Filter out soft-deleted entries
         )
       )
       .first();
@@ -169,7 +182,7 @@ export const joinWaitingList = mutation({
       )
       .collect()
       .then(
-        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now && !e.isDeleted).length
       );
 
     const availableSpots = event.totalTickets - (purchasedCount + activeOffers);
@@ -291,7 +304,7 @@ export const purchaseTicket = mutation({
       )
       .collect()
       .then(
-        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now && !e.isDeleted).length
       );
 
     const availableSpots = event.totalTickets - purchasedCount - activeOffers;
@@ -349,10 +362,10 @@ export const purchaseTicket = mutation({
 
       console.log(`${quantity} ticket(s) created with IDs:`, ticketIds);
 
-      console.log("Deleting waiting list entry (no longer needed after purchase)");
-      // Delete the waiting list entry instead of marking as purchased
-      // This keeps the database clean and prevents any conflicts with future purchases
-      await ctx.db.delete(waitingListId);
+      console.log("Marking waiting list entry as deleted (soft delete)");
+      // SOFT DELETE: Mark the waiting list entry as deleted instead of hard delete
+      // This preserves transaction history and maintains data integrity
+      await ctx.db.patch(waitingListId, { isDeleted: true });
 
       console.log("Processing queue for next person using scheduler");
       await ctx.scheduler.runAfter(0, internal.waitingList.processQueueInternal, {
@@ -445,7 +458,7 @@ export const getEventAvailability = query({
       )
       .collect()
       .then(
-        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now && !e.isDeleted).length
       );
 
     const totalReserved = purchasedCount + activeOffers;
@@ -465,7 +478,12 @@ export const search = query({
   handler: async (ctx, { searchTerm }) => {
     const events = await ctx.db
       .query("events")
-      .filter((q) => q.eq(q.field("is_cancelled"), undefined))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("is_cancelled"), undefined),
+          q.eq(q.field("isDeleted"), undefined) // Filter out soft-deleted events
+        )
+      )
       .collect();
 
     return events.filter((event) => {
@@ -484,7 +502,8 @@ export const getSellerEvents = query({
   handler: async (ctx, { userId }) => {
     const events = await ctx.db
       .query("events")
-      .filter((q) => q.eq(q.field("userId"), userId))
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .filter((q) => q.eq(q.field("isDeleted"), undefined)) // Filter out soft-deleted events
       .collect();
 
     // For each event, get ticket sales data
@@ -493,6 +512,7 @@ export const getSellerEvents = query({
         const tickets = await ctx.db
           .query("tickets")
           .withIndex("by_event", (q) => q.eq("eventId", event._id))
+          .filter((q) => q.eq(q.field("isDeleted"), undefined)) // Filter out soft-deleted tickets
           .collect();
 
         const validTickets = tickets.filter(
@@ -607,14 +627,14 @@ export const cancelEvent = mutation({
       is_cancelled: true,
     });
 
-    // Delete any waiting list entries
+    // SOFT DELETE: Mark waiting list entries as deleted instead of hard delete
     const waitingListEntries = await ctx.db
       .query("waitingList")
       .withIndex("by_event_status", (q) => q.eq("eventId", eventId))
       .collect();
 
     for (const entry of waitingListEntries) {
-      await ctx.db.delete(entry._id);
+      await ctx.db.patch(entry._id, { isDeleted: true });
     }
 
     return { success: true };

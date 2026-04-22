@@ -43,9 +43,12 @@ export const getQueuePosition = query({
         q.eq("userId", userId).eq("eventId", eventId)
       )
       .filter((q) => 
-        q.or(
-          q.eq(q.field("status"), WAITING_LIST_STATUS.WAITING),
-          q.eq(q.field("status"), WAITING_LIST_STATUS.OFFERED)
+        q.and(
+          q.or(
+            q.eq(q.field("status"), WAITING_LIST_STATUS.WAITING),
+            q.eq(q.field("status"), WAITING_LIST_STATUS.OFFERED)
+          ),
+          q.eq(q.field("isDeleted"), undefined) // Filter out soft-deleted
         )
       )
       .first();
@@ -62,7 +65,8 @@ export const getQueuePosition = query({
           q.or(
             q.eq(q.field("status"), WAITING_LIST_STATUS.WAITING),
             q.eq(q.field("status"), WAITING_LIST_STATUS.OFFERED)
-          )
+          ),
+          q.eq(q.field("isDeleted"), undefined) // Filter out soft-deleted
         )
       )
       .collect()
@@ -113,7 +117,7 @@ async function processQueueHandler(ctx: any, eventId: Id<"events">) {
     .collect()
     .then(
       (entries: Doc<"waitingList">[]) =>
-        entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        entries.filter((e) => (e.offerExpiresAt ?? 0) > now && !e.isDeleted).length
     );
 
   const availableSpots = eventData.totalTickets - (purchasedCount + activeOffers);
@@ -210,13 +214,14 @@ export const cleanupExpiredOffers = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
-    // Find all expired but not yet cleaned up offers
+    // Find all expired but not yet cleaned up offers (exclude soft-deleted)
     const expiredOffers = await ctx.db
       .query("waitingList")
       .filter((q) =>
         q.and(
           q.eq(q.field("status"), WAITING_LIST_STATUS.OFFERED),
-          q.lt(q.field("offerExpiresAt"), now)
+          q.lt(q.field("offerExpiresAt"), now),
+          q.eq(q.field("isDeleted"), undefined) // Filter out soft-deleted
         )
       )
       .collect();

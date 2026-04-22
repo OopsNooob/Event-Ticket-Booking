@@ -50,6 +50,11 @@ export const getUserById = query({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
+    // Filter out deleted users (soft delete)
+    if (user && user.isDeleted) {
+      return null;
+    }
+
     return user;
   },
 });
@@ -61,6 +66,11 @@ export const getUserByEmail = query({
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", email))
       .first();
+
+    // Filter out deleted users (soft delete)
+    if (user && user.isDeleted) {
+      return null;
+    }
 
     return user;
   },
@@ -194,5 +204,24 @@ export const updateUserRole = mutation({
 
     await ctx.db.patch(user._id, { role });
     return { success: true };
+  },
+});
+
+export const deleteUser = mutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    // Find user by userId
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // SOFT DELETE: Set isDeleted flag instead of deleting
+    await ctx.db.patch(user._id, { isDeleted: true });
+    return { success: true, message: "User marked as deleted" };
   },
 });
