@@ -105,6 +105,80 @@ export const refundPayment = mutation({
   },
 });
 
+// ==========================================================
+// TÍNH NĂNG MỚI THEO ADD.CSV (ID 59) & ASR
+// ==========================================================
+/**
+ * Process Internal Payment & Create Tickets (ACID Transaction)
+ * Đảm bảo Concurrency Control (Chống Race Conditions / Bán lố vé)
+ */
+export const processInternalPayment = mutation({
+  args: {
+    eventId: v.id("events"),
+    userId: v.string(),
+    quantity: v.number(),
+    paymentMethod: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { eventId, userId, quantity, paymentMethod } = args;
+
+    // 1. Fetch Event Details
+    const event = await ctx.db.get(eventId);
+    if (!event || event.isDeleted || event.is_cancelled) {
+      throw new Error("Sự kiện không tồn tại hoặc đã bị hủy.");
+    }
+
+    if (quantity <= 0) {
+      throw new Error("Số lượng vé phải lớn hơn 0.");
+    }
+
+    // 2. Count currently valid/used tickets for this event
+    const existingTickets = await ctx.db
+      .query("tickets")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .collect();
+
+    const purchasedCount = existingTickets.filter(
+      (t) => (t.status === "valid" || t.status === "used") && !t.isDeleted
+    ).length;
+
+    // 3. CONCURRENCY CONTROL (ADD ID 59): Chống bán vượt quá số lượng
+    // Do mọi logic đọc (read) và ghi (write) nằm trong cùng 1 hàm mutation của Convex,
+    // Database sẽ lock state lại, loại bỏ hoàn toàn khả năng Race Condition.
+    if (purchasedCount + quantity > event.totalTickets) {
+      throw new Error("Concurrency Control: Vé đã bán hết hoặc không đủ số lượng bạn yêu cầu, giao dịch bị hủy!");
+    }
+
+    // 4. Create Payment Record (Internal/Direct)
+    const totalAmount = event.price * quantity;
+    const paymentId = await ctx.db.insert("payments", {
+      eventId,
+      userId,
+      amount: totalAmount,
+      paymentMethod,
+      status: "completed", // Hoàn thành ngay vì là thanh toán nội bộ
+      createdAt: Date.now(),
+      completedAt: Date.now(),
+    });
+
+    // 5. Batch Insert Tickets (Tạo hàng loạt vé - Tối ưu hiệu suất theo ADD ID 58)
+    const ticketIds = await Promise.all(
+      Array.from({ length: quantity }, async () => {
+        return await ctx.db.insert("tickets", {
+          eventId,
+          userId,
+          purchasedAt: Date.now(),
+          status: "valid",
+          paymentId,
+          amount: event.price,
+        });
+      })
+    );
+
+    return { success: true, paymentId, ticketIds };
+  },
+});
+
 /**
  * Get payment by ID
  */
@@ -144,8 +218,7 @@ export const getUserPayments = query({
 
 /**
  * Paginated User Payments Query
- * 
- * Performance: Pagination for Large Datasets (SAD 12.4)
+ * * Performance: Pagination for Large Datasets (SAD 12.4)
  * Returns user's payments in pages. Critical for users with 1000+ transactions.
  */
 export const getUserPaymentsPaginated = query({
@@ -178,8 +251,7 @@ export const getEventPayments = query({
 
 /**
  * Paginated Event Payments Query
- * 
- * Performance: Pagination for Large Datasets (SAD 12.4)
+ * * Performance: Pagination for Large Datasets (SAD 12.4)
  * Returns event's payments in pages. Critical for popular events with 10K+ orders.
  */
 export const getEventPaymentsPaginated = query({
