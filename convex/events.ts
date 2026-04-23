@@ -598,11 +598,11 @@ export const updateEvent = mutation({
   args: {
     eventId: v.id("events"),
     userId: v.string(), // Thêm argument này
-    name: v.string(),
-    description: v.string(),
-    location: v.string(),
-    eventDate: v.number(),
-    price: v.number(),
+    name: v.optional(v.string()),
+    description:v.optional(v.string()),
+    location: v.optional(v.string()),
+    eventDate: v.optional(v.number()),
+    price: v.optional(v.number()),
     totalTickets: v.number(),
   },
   handler: async (ctx, args) => {

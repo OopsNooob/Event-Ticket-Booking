@@ -4,7 +4,7 @@ import { mutation, query } from "./_generated/server";
 export const updateUser = mutation({
   args: {
     userId: v.string(),
-    name: v.string(),
+    name: v.optional(v.string()),
     email: v.string(),
   },
   handler: async (ctx, { userId, name, email }) => {
