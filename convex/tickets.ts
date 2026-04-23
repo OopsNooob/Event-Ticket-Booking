@@ -72,11 +72,9 @@ export const getValidTicketsForEvent = query({
 
 /**
  * Paginated User Tickets Query
- * 
- * Performance: Pagination for Large Datasets (SAD 12.4)
+ * * Performance: Pagination for Large Datasets (SAD 12.4)
  * Returns user's tickets in pages instead of loading all at once.
- * 
- * Usage: For users with hundreds of tickets
+ * * Usage: For users with hundreds of tickets
  */
 export const getUserTicketsPaginated = query({
   args: {
@@ -95,8 +93,7 @@ export const getUserTicketsPaginated = query({
 
 /**
  * Paginated Event Tickets Query
- * 
- * Performance: Pagination for Large Datasets (SAD 12.4)
+ * * Performance: Pagination for Large Datasets (SAD 12.4)
  * Returns event's tickets in pages. Critical for events with 100K+ tickets.
  */
 export const getEventTicketsPaginated = query({
@@ -211,6 +208,45 @@ export const markTicketAsUsed = mutation({
 
     await ctx.db.patch(ticketId, {
       status: "used",
+    });
+
+    return { success: true };
+  },
+});
+
+// ==========================================================
+// TÍNH NĂNG MỚI THEO ADD.CSV (ID 57 & ID 61)
+// ==========================================================
+export const deleteTicket = mutation({
+  args: {
+    ticketId: v.id("tickets"),
+    organizerId: v.string(), // Cần truyền ID của organizer (người đang thực hiện thao tác xóa) từ Frontend
+  },
+  handler: async (ctx, { ticketId, organizerId }) => {
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket || ticket.isDeleted) {
+      throw new Error("Ticket not found or already deleted");
+    }
+
+    const event = await ctx.db.get(ticket.eventId);
+    if (!event) {
+      throw new Error("Event not found");
+    }
+
+    // 1. Authorize Access (Kiến trúc ADD ID 61): Xác thực quyền Organizer của event
+    if (event.userId !== organizerId) {
+      throw new Error("Authorize Access: Bạn không có quyền xóa vé của sự kiện này.");
+    }
+
+    // 2. Maintain Dependencies (Kiến trúc ADD ID 57): Bảo vệ dữ liệu ràng buộc
+    // Không cho phép xóa vé nếu vé đang có hiệu lực sử dụng hoặc đã dùng
+    if (ticket.status === "valid" || ticket.status === "used") {
+      throw new Error("Maintain Dependencies: Không thể xóa vé đã có giao dịch mua bán hợp lệ!");
+    }
+
+    // 3. Thực hiện Soft Delete
+    await ctx.db.patch(ticketId, {
+      isDeleted: true,
     });
 
     return { success: true };
