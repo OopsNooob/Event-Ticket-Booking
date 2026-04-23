@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
-// import { Id } from "./_generated/dataModel";
 
 /**
  * Create a new payment record
@@ -84,12 +83,18 @@ export const failPayment = mutation({
 export const refundPayment = mutation({
   args: {
     paymentId: v.id("payments"),
+    organizerId: v.string(), // Thêm argument này
   },
-  handler: async (ctx, { paymentId }) => {
+  handler: async (ctx, { paymentId, organizerId }) => {
     const payment = await ctx.db.get(paymentId);
-    
     if (!payment) {
       throw new Error("Payment not found");
+    }
+
+    const event = await ctx.db.get(payment.eventId);
+    // Thêm check quyền sở hữu (Tenant Isolation)
+    if (!event || event.userId !== organizerId) {
+      throw new Error("Tenant Isolation: Bạn không có quyền hoàn tiền cho giao dịch này!");
     }
 
     if (payment.status !== "completed") {
@@ -102,6 +107,73 @@ export const refundPayment = mutation({
     });
 
     return { success: true };
+  },
+});
+// ==========================================================
+// TÍNH NĂNG MỚI THEO ADD.CSV (ID 59) & ASR
+// ==========================================================
+/**
+ * Process Internal Payment & Create Tickets (ACID Transaction)
+ * Đảm bảo Concurrency Control (Chống Race Conditions / Bán lố vé)
+ */
+export const processInternalPayment = mutation({
+  args: {
+    eventId: v.id("events"),
+    userId: v.string(),
+    quantity: v.number(),
+    paymentMethod: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { eventId, userId, quantity, paymentMethod } = args;
+
+    const event = await ctx.db.get(eventId);
+    if (!event || event.isDeleted || event.is_cancelled) {
+      throw new Error("Sự kiện không tồn tại hoặc đã bị hủy.");
+    }
+
+    if (quantity <= 0) {
+      throw new Error("Số lượng vé phải lớn hơn 0.");
+    }
+
+    const existingTickets = await ctx.db
+      .query("tickets")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .collect();
+
+    const purchasedCount = existingTickets.filter(
+      (t) => (t.status === "valid" || t.status === "used") && !t.isDeleted
+    ).length;
+
+    // CONCURRENCY CONTROL (ADD ID 59)
+    if (purchasedCount + quantity > event.totalTickets) {
+      throw new Error("Concurrency Control: Vé đã bán hết hoặc không đủ số lượng bạn yêu cầu, giao dịch bị hủy!");
+    }
+
+    const totalAmount = event.price * quantity;
+    const paymentId = await ctx.db.insert("payments", {
+      eventId,
+      userId,
+      amount: totalAmount,
+      paymentMethod,
+      status: "completed",
+      createdAt: Date.now(),
+      completedAt: Date.now(),
+    });
+
+    const ticketIds = await Promise.all(
+      Array.from({ length: quantity }, async () => {
+        return await ctx.db.insert("tickets", {
+          eventId,
+          userId,
+          purchasedAt: Date.now(),
+          status: "valid",
+          paymentId,
+          amount: event.price,
+        });
+      })
+    );
+
+    return { success: true, paymentId, ticketIds };
   },
 });
 
@@ -127,7 +199,6 @@ export const getUserPayments = query({
       .order("desc")
       .collect();
 
-    // Get event details for each payment
     const paymentsWithEvents = await Promise.all(
       payments.map(async (payment) => {
         const event = await ctx.db.get(payment.eventId);
@@ -144,9 +215,6 @@ export const getUserPayments = query({
 
 /**
  * Paginated User Payments Query
- * 
- * Performance: Pagination for Large Datasets (SAD 12.4)
- * Returns user's payments in pages. Critical for users with 1000+ transactions.
  */
 export const getUserPaymentsPaginated = query({
   args: {
@@ -163,7 +231,7 @@ export const getUserPaymentsPaginated = query({
 });
 
 /**
- * Get all payments for an event (for sellers)
+ * Get all payments for an event
  */
 export const getEventPayments = query({
   args: { eventId: v.id("events") },
@@ -176,33 +244,17 @@ export const getEventPayments = query({
   },
 });
 
-/**
- * Paginated Event Payments Query
- * 
- * Performance: Pagination for Large Datasets (SAD 12.4)
- * Returns event's payments in pages. Critical for popular events with 10K+ orders.
- */
-export const getEventPaymentsPaginated = query({
-  args: {
-    eventId: v.id("events"),
-    paginationOpts: paginationOptsValidator,
-  },
-  handler: async (ctx, { eventId, paginationOpts }) => {
-    return await ctx.db
-      .query("payments")
-      .withIndex("by_event", (q) => q.eq("eventId", eventId))
-      .order("desc")
-      .paginate(paginationOpts);
-  },
-});
+// ==========================================================
+// TỐI ƯU HÓA: SERVER-SIDE AGGREGATION (ADD ID 62)
+// ==========================================================
 
 /**
- * Get seller's total revenue and payment stats
+ * getSellerStats - Thống kê tổng quan cho Seller
+ * Sử dụng vòng lặp tích lũy trên server thay vì tải toàn bộ bản ghi về Client.
  */
 export const getSellerStats = query({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
-    // Get all events created by this seller
     const events = await ctx.db
       .query("events")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
@@ -210,35 +262,39 @@ export const getSellerStats = query({
 
     const eventIds = events.map((e) => e._id);
 
-    // Get all payments for these events
-    const allPayments = await Promise.all(
-      eventIds.map((eventId) =>
-        ctx.db
-          .query("payments")
-          .withIndex("by_event", (q) => q.eq("eventId", eventId))
-          .collect()
-      )
-    );
+    // Biến tích lũy (Aggregation variables)
+    let totalRevenue = 0;
+    let totalRefunded = 0;
+    let pendingAmount = 0;
+    let completedCount = 0;
+    let refundedCount = 0;
+    let pendingCount = 0;
+    let failedCount = 0;
+    let totalPaymentsCount = 0;
 
-    const payments = allPayments.flat();
+    for (const eventId of eventIds) {
+      const payments = await ctx.db
+        .query("payments")
+        .withIndex("by_event", (q) => q.eq("eventId", eventId))
+        .collect();
 
-    // Calculate stats
-    const totalRevenue = payments
-      .filter((p) => p.status === "completed")
-      .reduce((sum, p) => sum + p.amount, 0);
+      totalPaymentsCount += payments.length;
 
-    const totalRefunded = payments
-      .filter((p) => p.status === "refunded")
-      .reduce((sum, p) => sum + p.amount, 0);
-
-    const pendingAmount = payments
-      .filter((p) => p.status === "pending")
-      .reduce((sum, p) => sum + p.amount, 0);
-
-    const completedCount = payments.filter((p) => p.status === "completed").length;
-    const refundedCount = payments.filter((p) => p.status === "refunded").length;
-    const pendingCount = payments.filter((p) => p.status === "pending").length;
-    const failedCount = payments.filter((p) => p.status === "failed").length;
+      for (const p of payments) {
+        if (p.status === "completed") {
+          totalRevenue += p.amount;
+          completedCount += 1;
+        } else if (p.status === "refunded") {
+          totalRefunded += p.amount;
+          refundedCount += 1;
+        } else if (p.status === "pending") {
+          pendingAmount += p.amount;
+          pendingCount += 1;
+        } else if (p.status === "failed") {
+          failedCount += 1;
+        }
+      }
+    }
 
     return {
       totalRevenue,
@@ -249,90 +305,82 @@ export const getSellerStats = query({
       refundedCount,
       pendingCount,
       failedCount,
-      totalPayments: payments.length,
+      totalPayments: totalPaymentsCount,
     };
   },
 });
 
 /**
- * Get seller stats for a specific month
+ * getSellerStatsByMonth - Thống kê theo tháng cho Seller
+ * Thực hiện lọc và cộng dồn trực tiếp trên server.
  */
 export const getSellerStatsByMonth = query({
   args: { 
     userId: v.string(),
-    month: v.number(), // 1-12
+    month: v.number(), 
     year: v.number(),
   },
   handler: async (ctx, { userId, month, year }) => {
-    // Get all events created by this seller
     const events = await ctx.db
       .query("events")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .collect();
 
-    const eventIds = events.map((e) => e._id);
-
-    // Get all payments for these events
-    const allPayments = await Promise.all(
-      eventIds.map((eventId) =>
-        ctx.db
-          .query("payments")
-          .withIndex("by_event", (q) => q.eq("eventId", eventId))
-          .collect()
-      )
-    );
-
-    const payments = allPayments.flat();
-
-    // Filter payments by month/year
     const startOfMonth = new Date(year, month - 1, 1).getTime();
     const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999).getTime();
+
+    let totalRevenue = 0;
+    let totalRefunded = 0;
+    let pendingAmount = 0;
+    let completedCount = 0;
+    let refundedCount = 0;
+    let pendingCount = 0;
+    let failedCount = 0;
+    let monthPaymentsCount = 0;
     
-    const monthPayments = payments.filter(
-      (p) => p.createdAt >= startOfMonth && p.createdAt <= endOfMonth
-    );
+    const eventBreakdown: any[] = [];
 
-    // Calculate stats
-    const totalRevenue = monthPayments
-      .filter((p) => p.status === "completed")
-      .reduce((sum, p) => sum + p.amount, 0);
+    for (const event of events) {
+      const payments = await ctx.db
+        .query("payments")
+        .withIndex("by_event", (q) => q.eq("eventId", event._id))
+        .collect();
 
-    const totalRefunded = monthPayments
-      .filter((p) => p.status === "refunded")
-      .reduce((sum, p) => sum + p.amount, 0);
+      // Lọc theo thời gian trong tháng
+      const filteredPayments = payments.filter(
+        (p) => p.createdAt >= startOfMonth && p.createdAt <= endOfMonth
+      );
 
-    const pendingAmount = monthPayments
-      .filter((p) => p.status === "pending")
-      .reduce((sum, p) => sum + p.amount, 0);
+      if (filteredPayments.length === 0) continue;
 
-    const completedCount = monthPayments.filter((p) => p.status === "completed").length;
-    const refundedCount = monthPayments.filter((p) => p.status === "refunded").length;
-    const pendingCount = monthPayments.filter((p) => p.status === "pending").length;
-    const failedCount = monthPayments.filter((p) => p.status === "failed").length;
+      monthPaymentsCount += filteredPayments.length;
+      let eventMonthlyRevenue = 0;
+      let eventTicketsSold = 0;
 
-    // Get event breakdown
-    const eventBreakdown = await Promise.all(
-      eventIds.map(async (eventId) => {
-        const event = await ctx.db.get(eventId);
-        if (!event) return null;
+      for (const p of filteredPayments) {
+        if (p.status === "completed") {
+          totalRevenue += p.amount;
+          eventMonthlyRevenue += p.amount;
+          completedCount += 1;
+          eventTicketsSold += 1;
+        } else if (p.status === "refunded") {
+          totalRefunded += p.amount;
+          refundedCount += 1;
+        } else if (p.status === "pending") {
+          pendingAmount += p.amount;
+          pendingCount += 1;
+        } else if (p.status === "failed") {
+          failedCount += 1;
+        }
+      }
 
-        const eventPayments = monthPayments.filter((p) => p.eventId === eventId);
-        if (eventPayments.length === 0) return null;
-
-        const revenue = eventPayments
-          .filter((p) => p.status === "completed")
-          .reduce((sum, p) => sum + p.amount, 0);
-
-        return {
-          eventId,
-          eventName: event.name,
-          ticketsSold: eventPayments.filter((p) => p.status === "completed").length,
-          revenue,
-        };
-      })
-    );
-
-    const validBreakdown = eventBreakdown.filter((e) => e !== null);
+      eventBreakdown.push({
+        eventId: event._id,
+        eventName: event.name,
+        ticketsSold: eventTicketsSold,
+        revenue: eventMonthlyRevenue,
+      });
+    }
 
     return {
       totalRevenue,
@@ -343,8 +391,8 @@ export const getSellerStatsByMonth = query({
       refundedCount,
       pendingCount,
       failedCount,
-      totalPayments: monthPayments.length,
-      eventBreakdown: validBreakdown,
+      totalPayments: monthPaymentsCount,
+      eventBreakdown,
     };
   },
 });

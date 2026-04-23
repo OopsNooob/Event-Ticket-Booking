@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useUser } from "@clerk/nextjs";
 
 export default function CancelEventButton({
   eventId,
@@ -17,9 +18,23 @@ export default function CancelEventButton({
   const [isCancelling, setIsCancelling] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  
+  // 1. Lấy thông tin user hiện tại từ Clerk (Client-side)
+  const { user } = useUser(); 
+  
   const cancelEvent = useMutation(api.events.cancelEvent);
 
   const handleCancel = async () => {
+    // 2. Kiểm tra an toàn: Đảm bảo user đã được load xong
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to cancel an event.",
+      });
+      return;
+    }
+
     if (
       !confirm(
         "Are you sure you want to cancel this event? All tickets will be refunded and the event will be cancelled permanently."
@@ -31,7 +46,13 @@ export default function CancelEventButton({
     setIsCancelling(true);
     try {
       await refundEventTickets(eventId);
-      await cancelEvent({ eventId });
+      
+      // 3. Truyền thêm userId vào mutation để thỏa mãn Tenant Isolation
+      await cancelEvent({ 
+        eventId, 
+        userId: user.id 
+      });
+      
       toast({
         title: "Event cancelled",
         description: "All tickets have been refunded successfully.",
@@ -52,7 +73,8 @@ export default function CancelEventButton({
   return (
     <button
       onClick={handleCancel}
-      disabled={isCancelling}
+      // Khóa nút nếu đang xử lý hoặc chưa load được user
+      disabled={isCancelling || !user} 
       className="flex items-center gap-2 px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
     >
       <Ban className="w-4 h-4" />
