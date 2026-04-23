@@ -80,24 +80,29 @@ export const failPayment = mutation({
 /**
  * Refund a payment
  */
-export const refundPayment = mutation({
+export const markTicketAsUsed = mutation({
   args: {
-    paymentId: v.id("payments"),
+    ticketId: v.id("tickets"),
+    organizerId: v.string(), // Thêm argument này
   },
-  handler: async (ctx, { paymentId }) => {
-    const payment = await ctx.db.get(paymentId);
-    
-    if (!payment) {
-      throw new Error("Payment not found");
+  handler: async (ctx, { ticketId, organizerId }) => {
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) {
+      throw new Error("Ticket not found");
     }
 
-    if (payment.status !== "completed") {
-      throw new Error("Can only refund completed payments");
+    const event = await ctx.db.get(ticket.eventId);
+    // Thêm check quyền sở hữu (Tenant Isolation)
+    if (!event || event.userId !== organizerId) {
+      throw new Error("Tenant Isolation: Bạn không có quyền quét vé này!");
     }
 
-    await ctx.db.patch(paymentId, {
-      status: "refunded",
-      refundedAt: Date.now(),
+    if (ticket.status !== "valid") {
+      throw new Error(`Ticket is already ${ticket.status}`);
+    }
+
+    await ctx.db.patch(ticketId, {
+      status: "used",
     });
 
     return { success: true };

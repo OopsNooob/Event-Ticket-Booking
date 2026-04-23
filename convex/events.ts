@@ -597,6 +597,7 @@ export const getSellerEventsWithStats = query({
 export const updateEvent = mutation({
   args: {
     eventId: v.id("events"),
+    userId: v.string(), // Thêm argument này
     name: v.string(),
     description: v.string(),
     location: v.string(),
@@ -605,11 +606,15 @@ export const updateEvent = mutation({
     totalTickets: v.number(),
   },
   handler: async (ctx, args) => {
-    const { eventId, ...updates } = args;
+    const { eventId, userId, ...updates } = args;
 
-    // Get current event to check tickets sold
     const event = await ctx.db.get(eventId);
     if (!event) throw new Error("Event not found");
+
+    // Thêm check quyền sở hữu (Tenant Isolation)
+    if (event.userId !== userId) {
+      throw new Error("Tenant Isolation: Bạn không có quyền chỉnh sửa sự kiện này!");
+    }
 
     const soldTickets = await ctx.db
       .query("tickets")
@@ -619,7 +624,6 @@ export const updateEvent = mutation({
       )
       .collect();
 
-    // Ensure new total tickets is not less than sold tickets
     if (updates.totalTickets < soldTickets.length) {
       throw new Error(
         `Cannot reduce total tickets below ${soldTickets.length} (number of tickets already sold)`
@@ -632,12 +636,19 @@ export const updateEvent = mutation({
 });
 
 export const cancelEvent = mutation({
-  args: { eventId: v.id("events") },
-  handler: async (ctx, { eventId }) => {
+  args: { 
+    eventId: v.id("events"),
+    userId: v.string(), // Thêm argument này
+  },
+  handler: async (ctx, { eventId, userId }) => {
     const event = await ctx.db.get(eventId);
     if (!event) throw new Error("Event not found");
 
-    // Get all valid tickets for this event
+    // Thêm check quyền sở hữu (Tenant Isolation)
+    if (event.userId !== userId) {
+      throw new Error("Tenant Isolation: Bạn không có quyền hủy sự kiện này!");
+    }
+
     const tickets = await ctx.db
       .query("tickets")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
@@ -652,12 +663,10 @@ export const cancelEvent = mutation({
       );
     }
 
-    // Mark event as cancelled
     await ctx.db.patch(eventId, {
       is_cancelled: true,
     });
 
-    // SOFT DELETE: Mark waiting list entries as deleted instead of hard delete
     const waitingListEntries = await ctx.db
       .query("waitingList")
       .withIndex("by_event_status", (q) => q.eq("eventId", eventId))

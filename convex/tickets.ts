@@ -114,6 +114,7 @@ export const getEventTicketsPaginated = query({
 export const updateTicketStatus = mutation({
   args: {
     ticketId: v.id("tickets"),
+    organizerId: v.string(), // Thêm argument này
     status: v.union(
       v.literal("valid"),
       v.literal("used"),
@@ -121,11 +122,19 @@ export const updateTicketStatus = mutation({
       v.literal("cancelled")
     ),
   },
-  handler: async (ctx, { ticketId, status }) => {
+  handler: async (ctx, { ticketId, organizerId, status }) => {
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) throw new Error("Ticket not found");
+
+    const event = await ctx.db.get(ticket.eventId);
+    // Thêm check quyền sở hữu (Tenant Isolation)
+    if (!event || event.userId !== organizerId) {
+      throw new Error("Tenant Isolation: Bạn không có quyền thay đổi trạng thái vé này!");
+    }
+
     await ctx.db.patch(ticketId, { status });
   },
 });
-
 // Auto-update expired tickets for a specific user
 export const updateExpiredTicketsForUser = mutation({
   args: {
@@ -195,11 +204,18 @@ export const updateAllExpiredTickets = mutation({
 export const markTicketAsUsed = mutation({
   args: {
     ticketId: v.id("tickets"),
+    organizerId: v.string(), // Thêm argument này
   },
-  handler: async (ctx, { ticketId }) => {
+  handler: async (ctx, { ticketId, organizerId }) => {
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) {
       throw new Error("Ticket not found");
+    }
+
+    const event = await ctx.db.get(ticket.eventId);
+    // Thêm check quyền sở hữu (Tenant Isolation)
+    if (!event || event.userId !== organizerId) {
+      throw new Error("Tenant Isolation: Bạn không có quyền quét vé này!");
     }
 
     if (ticket.status !== "valid") {
@@ -213,7 +229,6 @@ export const markTicketAsUsed = mutation({
     return { success: true };
   },
 });
-
 // ==========================================================
 // TÍNH NĂNG MỚI THEO ADD.CSV (ID 57 & ID 61)
 // ==========================================================
