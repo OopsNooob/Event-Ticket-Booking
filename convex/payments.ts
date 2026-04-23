@@ -80,35 +80,35 @@ export const failPayment = mutation({
 /**
  * Refund a payment
  */
-export const markTicketAsUsed = mutation({
+export const refundPayment = mutation({
   args: {
-    ticketId: v.id("tickets"),
+    paymentId: v.id("payments"),
     organizerId: v.string(), // Thêm argument này
   },
-  handler: async (ctx, { ticketId, organizerId }) => {
-    const ticket = await ctx.db.get(ticketId);
-    if (!ticket) {
-      throw new Error("Ticket not found");
+  handler: async (ctx, { paymentId, organizerId }) => {
+    const payment = await ctx.db.get(paymentId);
+    if (!payment) {
+      throw new Error("Payment not found");
     }
 
-    const event = await ctx.db.get(ticket.eventId);
+    const event = await ctx.db.get(payment.eventId);
     // Thêm check quyền sở hữu (Tenant Isolation)
     if (!event || event.userId !== organizerId) {
-      throw new Error("Tenant Isolation: Bạn không có quyền quét vé này!");
+      throw new Error("Tenant Isolation: Bạn không có quyền hoàn tiền cho giao dịch này!");
     }
 
-    if (ticket.status !== "valid") {
-      throw new Error(`Ticket is already ${ticket.status}`);
+    if (payment.status !== "completed") {
+      throw new Error("Can only refund completed payments");
     }
 
-    await ctx.db.patch(ticketId, {
-      status: "used",
+    await ctx.db.patch(paymentId, {
+      status: "refunded",
+      refundedAt: Date.now(),
     });
 
     return { success: true };
   },
 });
-
 // ==========================================================
 // TÍNH NĂNG MỚI THEO ADD.CSV (ID 59) & ASR
 // ==========================================================

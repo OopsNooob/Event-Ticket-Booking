@@ -123,6 +123,7 @@ export default function EventForm({ mode, initialData }: EventFormProps) {
           // Update event details
           await updateEvent({
             eventId: initialData._id,
+            userId: user.id,
             ...values,
             eventDate: values.eventDate.getTime(),
           });
