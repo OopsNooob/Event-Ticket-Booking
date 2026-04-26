@@ -4,6 +4,31 @@
 
 A modern, real-time event ticketing platform built with Next.js 15, Convex, Clerk, and Nodemailer. Features a sophisticated queue system, real-time updates, role-based access control, and email ticket delivery.
 
+## 🏗️ Architectural Design & Quality Attributes
+
+This platform is built following **Attribute-Driven Design (ADD)** principles. Every core feature is implemented using specific architectural tactics to satisfy key Quality Attributes:
+
+### 🛡️ Security & Data Isolation
+- **Tenant Data Isolation**: Every mutation (`updateEvent`, `deleteTicket`, etc.) includes a strict ownership check. This prevents IDOR (Insecure Direct Object Reference) attacks by ensuring Organizers can only manipulate their own data.
+- **Role-Based Access Control (RBAC)**: Enforced via **Clerk** identity tokens and protected by both Next.js Middleware and a custom `RoleGuard` component.
+- **Rate Limiting**: Implemented request throttling in `middleware.ts` to protect the system against automated spam and DoS attempts on search and booking endpoints.
+
+### 💎 Reliability & Data Integrity
+- **ACID Transactions (Concurrency Control)**: Core purchasing logic is encapsulated within Convex mutations to ensure atomic operations. This prevents race conditions where multiple users might attempt to buy the same last remaining ticket.
+- **Soft Delete Tactic**: Implemented `isDeleted` flags for Users and Events to preserve historical financial audit trails while removing items from the active UI.
+- **Data Dependency Maintenance**: Strict logic prevents the deletion of ticket tiers that are linked to existing purchase records, maintaining referential integrity.
+- **Smooth Partial Updates**: Mutations are designed to accept optional fields, allowing for efficient, granular data updates without payload overhead.
+
+### 🚀 Performance & Scalability
+- **Database Indexing Strategy**: Optimized `convex/schema.ts` with custom indexes for high-frequency queries (e.g., `by_event`, `by_organizer`), ensuring sub-second response times as the dataset scales.
+- **Server-Side Aggregation**: Revenue and sales statistics are calculated directly on the Convex backend to minimize data transfer and offload heavy computation from the client.
+- **Batch Processing**: Grouped high-volume database operations (such as mass gift code generation) using `Promise.all` to prevent I/O bottlenecks.
+- **Client-Side Debouncing**: Search inputs are debounced to reduce unnecessary server-side query execution during user discovery.
+
+### 🟢 Availability & Fault Tolerance
+- **Global Error Handling**: A centralized `app/global-error.tsx` catches runtime exceptions, displays a recovery UI, and triggers automated developer alerts via background hooks.
+- **Fault Tolerance via Retries**: The email delivery system (Nodemailer) includes automated retry logic to ensure digital tickets are delivered even during transient network failures.
+
 ## 🆕 New Features & Enhancements (Fork-Specific)
 
 ### Role-Based Access Control System
