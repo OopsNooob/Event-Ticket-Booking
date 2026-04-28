@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import RootLayoutClient from "@/components/RootLayoutClient";
+import { VercelAnalytics } from "@/components/VercelAnalytics";
 
 // Mark layout as dynamic to prevent prerendering issues with Convex
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <RootLayoutClient>{children}</RootLayoutClient>
+        <VercelAnalytics />
       </body>
     </html>
   );
