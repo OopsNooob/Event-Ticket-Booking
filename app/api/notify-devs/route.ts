@@ -8,10 +8,6 @@ declare global {
       GMAIL_USER?: string;
       GMAIL_APP_PASSWORD?: string;
       ALERT_EMAIL?: string;
-      EMAIL_PROVIDER?: string;
-      RESEND_API_KEY?: string;
-      SENDGRID_API_KEY?: string;
-      SENDGRID_FROM_EMAIL?: string;
       DISCORD_WEBHOOK_URL?: string;
       SENTRY_DSN?: string;
     }
@@ -209,58 +205,8 @@ async function notifyDevelopers(report: ErrorReport): Promise<void> {
   // Send to email if configured
   if (email) {
     try {
-      const emailProvider = process.env.EMAIL_PROVIDER || 'gmail';
-
-      if (emailProvider === 'gmail') {
-        // Send via Gmail using nodemailer
-        await sendEmailViaGmail(email, report);
-      } else if (emailProvider === 'resend') {
-        // Implementation with Resend
-        try {
-          const { Resend } = await import('resend');
-          const resend = new Resend(process.env.RESEND_API_KEY);
-
-          await resend.emails.send({
-            from: 'alerts@eventbooking.com',
-            to: email,
-            subject: `🚨 [${report.name}] ${report.message.substring(0, 50)}...`,
-            html: formatEmailBody(report),
-          });
-
-          console.log(`✓ Email sent to ${email}`);
-        } catch (resendErr) {
-          console.error('Resend email failed:', resendErr);
-          // Fallback: log to console
-          console.log(`📧 ERROR EMAIL TO ${email}:\n${formatEmailBody(report)}`);
-        }
-      } else if (emailProvider === 'sendgrid') {
-        // Implementation with SendGrid (optional - install: npm install @sendgrid/mail)
-        try {
-          // Dynamically require to avoid build error if not installed
-          const sgMail = (global as any).sgMail || require('@sendgrid/mail');
-          sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
-
-          await sgMail.send({
-            to: email,
-            from: process.env.SENDGRID_FROM_EMAIL || 'alerts@eventbooking.com',
-            subject: `🚨 [${report.name}] ${report.message.substring(0, 50)}...`,
-            html: formatEmailBody(report),
-          });
-
-          console.log(`✓ Email sent via SendGrid to ${email}`);
-        } catch (sgErr) {
-          if ((sgErr as any)?.code === 'MODULE_NOT_FOUND') {
-            console.error('SendGrid module not installed. Install with: npm install @sendgrid/mail');
-          } else {
-            console.error('SendGrid email failed:', sgErr);
-          }
-          console.log(`📧 Fallback: ERROR EMAIL TO ${email}:\n${formatEmailBody(report)}`);
-        }
-      } else {
-        // Console/Log fallback (always works)
-        console.log(`📧 ALERT EMAIL TO ${email}:`);
-        console.log(formatEmailBody(report));
-      }
+      // Send via Gmail using nodemailer
+      await sendEmailViaGmail(email, report);
     } catch (err) {
       console.error('Failed to send email notification:', err);
     }
